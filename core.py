@@ -44,7 +44,6 @@ def generate_and_run(user_query: str, task_id: int, on_progress=None):
     while current_attempt < max_retries:
         current_attempt += 1
         
-        # 1. Генерация (или исправление) кода
         if current_attempt == 1:
             log("Генерация кода через Gemini...", 30)
             code = get_generation_code(user_query, task_id)
@@ -55,7 +54,6 @@ def generate_and_run(user_query: str, task_id: int, on_progress=None):
         if not code:
             return {"status": "error", "message": "Gemini вернула пустой ответ."}
 
-        # 2. Валидация кода
         log("Проверка безопасности и синтаксиса...", 50)
         is_safe, msg = is_code_safe_and_valid(code)
         if not is_safe:
