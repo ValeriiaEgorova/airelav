@@ -29,10 +29,7 @@ const startGeneration = async () => {
 
   try {
     const response = await axios.post(`${API_URL}/generate`, null, {
-      params: {
-        prompt: prompt.value,
-        file_format: selectedFormat.value
-      }
+      params: { prompt: prompt.value }
     });
 
     const taskId = response.data.task_id;
@@ -173,14 +170,6 @@ onMounted(() => {
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Формат файла</label>
-                <div class="flex bg-gray-100 rounded-lg p-1">
-                  <button @click="selectedFormat = 'csv'" :class="{'bg-white shadow-sm text-gray-900': selectedFormat === 'csv', 'text-gray-500': selectedFormat !== 'csv'}" class="flex-1 py-2 rounded-md text-sm font-medium transition-all">CSV</button>
-                  <button @click="selectedFormat = 'json'" :class="{'bg-white shadow-sm text-gray-900': selectedFormat === 'json', 'text-gray-500': selectedFormat !== 'json'}" class="flex-1 py-2 rounded-md text-sm font-medium transition-all">JSON</button>
-                  <button @click="selectedFormat = 'excel'" :class="{'bg-white shadow-sm text-gray-900': selectedFormat === 'excel', 'text-gray-500': selectedFormat !== 'excel'}" class="flex-1 py-2 rounded-md text-sm font-medium transition-all">Excel</button>
-                </div>
-              </div>
                <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Язык данных</label>
                 <select class="w-full p-2.5 border border-gray-200 rounded-lg bg-white">
@@ -210,18 +199,31 @@ onMounted(() => {
               </div>
             </div>
 
-            <div v-if="currentTask && currentTask.preview_data && currentTask.preview_data.length > 0" class="mt-8 animate-fade-in border-t pt-6">
+             <div v-if="currentTask && currentTask.preview_data" class="mt-8 animate-fade-in border-t pt-6">
               <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-gray-800 flex items-center">
-                  <i class="fas fa-table mr-2 text-blue-500"></i>Предпросмотр данных
+                  <i class="fas fa-table mr-2 text-blue-500"></i>Предпросмотр
                 </h3>
-                <a 
-                  :href="`${API_URL}/download/${currentTask.id}`" 
-                  target="_blank"
-                  class="text-sm bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded-lg transition-colors flex items-center"
-                >
-                  <i class="fas fa-download mr-2"></i> Скачать файл
-                </a>
+                
+                <div class="flex space-x-2">
+                  <span class="text-sm text-gray-500 self-center mr-2">Скачать как:</span>
+                  
+                  <a :href="`${API_URL}/download/${currentTask.id}?format=csv`" target="_blank" 
+                     class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition border border-green-200 text-sm font-medium">
+                    <i class="fas fa-file-csv"></i> <span>CSV</span>
+                  </a>
+                  
+                  <a :href="`${API_URL}/download/${currentTask.id}?format=json`" target="_blank"
+                     class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition border border-yellow-200 text-sm font-medium">
+                    <i class="fas fa-code"></i> <span>JSON</span>
+                  </a>
+                  
+                  <a :href="`${API_URL}/download/${currentTask.id}?format=xlsx`" target="_blank"
+                     class="flex items-center space-x-1 px-3 py-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition border border-blue-200 text-sm font-medium">
+                    <i class="fas fa-file-excel"></i> <span>Excel</span>
+                  </a>
+                </div>
+
               </div>
               
               <div class="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">

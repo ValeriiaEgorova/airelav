@@ -6,6 +6,11 @@ from sqlmodel import Session, select
 from database import create_db_and_tables, get_session, engine
 from models import GenerationTask
 from core import generate_and_run
+from fastapi.responses import StreamingResponse
+import io
+import pandas as pd
+from models import User
+from auth import get_current_user
 
 app = FastAPI(title="SynthGen AI API")
 
@@ -23,11 +28,11 @@ def on_startup():
 @app.post("/generate")
 async def start_generation(
     prompt: str, 
-    file_format: str, 
     background_tasks: BackgroundTasks, 
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
 ):
-    task = GenerationTask(prompt=prompt, file_format=file_format)
+    task = GenerationTask(prompt=prompt, file_format='pkl', user_id=current_user.id)
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -40,11 +45,41 @@ async def get_history(session: Session = Depends(get_session)):
     tasks = session.exec(select(GenerationTask).order_by(GenerationTask.created_at.desc())).all()
     return tasks
 @app.get("/download/{task_id}")
-async def download_file(task_id: int, session: Session = Depends(get_session)):
+async def download_file(
+    task_id: int, 
+    format: str = "csv",
+    session: Session = Depends(get_session)
+):
     task = session.get(GenerationTask, task_id)
     if not task or not task.file_path or not os.path.exists(task.file_path):
-        raise HTTPException(status_code=404, detail="Файл не найден")
-    return FileResponse(task.file_path, filename=os.path.basename(task.file_path))
+        raise HTTPException(status_code=404, detail="Файл данных не найден")
+
+    try:
+        df = pd.read_pickle(task.file_path)
+        
+        stream = io.BytesIO()
+        
+        if format == "csv":
+            df.to_csv(stream, index=False, encoding='utf-8-sig')
+            media_type = "text/csv"
+            filename = f"dataset_{task_id}.csv"
+        elif format == "json":
+            df.to_json(stream, orient="records", force_ascii=False, indent=4)
+            media_type = "application/json"
+            filename = f"dataset_{task_id}.json"
+        elif format == "xlsx":
+            df.to_excel(stream, index=False)
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            filename = f"dataset_{task_id}.xlsx"
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+            
+        stream.seek(0)
+        return StreamingResponse(stream, media_type=media_type, headers={"Content-Disposition": f"attachment; filename={filename}"})
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка конвертации: {str(e)}")
+    
 def run_generation_wrapper(task_id: int):
     with Session(engine) as session:
         task = session.get(GenerationTask, task_id)
