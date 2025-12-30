@@ -1,10 +1,12 @@
+import ast
 import os
 import re
-import ast
 import subprocess
-from google import genai
+from typing import Any
+
 import pandas as pd
 from dotenv import load_dotenv
+from google import genai
 
 load_dotenv()
 
@@ -15,35 +17,48 @@ STORAGE_DIR = "storage"
 
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
-def is_code_safe_and_valid(code: str):
+
+def is_code_safe_and_valid(code: str) -> tuple[bool, str]:
     try:
         ast.parse(code)
     except SyntaxError as e:
         return False, f"Ошибка синтаксиса: {e}"
-    
-    forbidden = ['os.', 'subprocess.', 'shutil.', 'requests.', 'socket.', 'eval(', 'exec(', '__import__']
+
+    forbidden = [
+        "os.",
+        "subprocess.",
+        "shutil.",
+        "requests.",
+        "socket.",
+        "eval(",
+        "exec(",
+        "__import__",
+    ]
     for cmd in forbidden:
         if cmd in code:
             return False, f"Нарушение безопасности: команда '{cmd}' запрещена."
     return True, "OK"
 
-def generate_and_run(user_query: str, task_id: int, on_progress=None):
-    
-    def log(message, percent):
+
+def generate_and_run(
+    user_query: str, task_id: int, on_progress: Any = None
+) -> dict[str, Any]:
+
+    def log(message: str, percent: int) -> None:
         if on_progress:
             on_progress(message, percent)
         print(f"[{percent}%] {message}")
 
     max_retries = 3
     current_attempt = 0
-    last_error = None
-    bad_code = None
+    last_error: str | None = None
+    bad_code: str | None = None
 
     log("Анализ запроса и подготовка промпта...", 10)
 
     while current_attempt < max_retries:
         current_attempt += 1
-        
+
         if current_attempt == 1:
             log("Генерация кода через Gemini...", 30)
             code = get_generation_code(user_query, task_id)
@@ -67,22 +82,22 @@ def generate_and_run(user_query: str, task_id: int, on_progress=None):
 
         if success:
             final_filename = f"{STORAGE_DIR}/result_{task_id}.pkl"
-            
+
             log("Генерация предпросмотра...", 90)
             preview = []
             try:
                 df = pd.read_pickle(final_filename)
                 df = df.fillna("")
-                preview = df.head(5).astype(object).to_dict(orient='records')
+                preview = df.head(5).astype(object).to_dict(orient="records")
             except Exception as e:
                 print(f"Ошибка превью: {e}")
 
             log("Данные успешно сгенерированы.", 100)
             return {
-                "status": "success", 
+                "status": "success",
                 "file": final_filename,
                 "code": code,
-                "preview": preview
+                "preview": preview,
             }
         else:
             log("Ошибка при исполнении. Попытка анализа...", 80)
@@ -90,15 +105,16 @@ def generate_and_run(user_query: str, task_id: int, on_progress=None):
             bad_code = code
 
     return {
-        "status": "error", 
-        "message": f"Не удалось создать данные после {max_retries} попыток. Последняя ошибка: {last_error}"
+        "status": "error",
+        "message": f"Не удалось создать данные после {max_retries} попыток. Последняя ошибка: {last_error}",
     }
 
-def get_generation_code(prompt, task_id):
+
+def get_generation_code(prompt: str, task_id: int) -> str | None:
     file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
-    
+
     cmd = f"df.to_pickle('{file_path_docker}')"
-    
+
     instr = f"""Напиши Python код (Pandas + Faker) для генерации данных.
     ПРАВИЛА:
     1. Локализация Faker: fake = Faker('ru_RU').
@@ -106,19 +122,25 @@ def get_generation_code(prompt, task_id):
     3. Сохрани результат командой: {cmd}
     4. НЕ используй print().
     5. Выдай ТОЛЬКО чистый код."""
-    
+
     try:
         resp = client.models.generate_content(
-            model=MODEL_ID, 
-            contents=f"{instr}\nЗапрос пользователя: {prompt}"
+            model=MODEL_ID, contents=f"{instr}\nЗапрос пользователя: {prompt}"
         )
-        code = re.sub(r'```python|```', '', resp.text).strip()
+        text_response = resp.text if resp.text else ""
+        code = re.sub(r"```python|```", "", text_response).strip()
         return code
     except Exception as e:
         print(f"Ошибка Gemini API: {e}")
         return None
 
-def get_fix_from_llm(bad_code, error_msg, task_id):
+
+def get_fix_from_llm(
+    bad_code: str | None, error_msg: str | None, task_id: int
+) -> str | None:
+    if not bad_code or not error_msg:
+        return None
+
     file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
 
     prompt = f"""
@@ -126,39 +148,53 @@ def get_fix_from_llm(bad_code, error_msg, task_id):
     ОШИБКА: {error_msg}
     ИСХОДНЫЙ КОД:
     {bad_code}
-    
     ВАЖНО: Результат должен быть сохранен в: {file_path_docker}
     Выдай только полный исправленный код без пояснений.
     """
     try:
         resp = client.models.generate_content(model=MODEL_ID, contents=prompt)
-        code = re.sub(r'```python|```', '', resp.text).strip()
+        text_response = resp.text if resp.text else ""
+        code = re.sub(r"```python|```", "", text_response).strip()
         return code
     except Exception as e:
         print(f"Ошибка Gemini API при фиксе: {e}")
         return None
 
-def run_in_sandbox(code, task_id):
+
+def run_in_sandbox(code: str, task_id: int) -> tuple[bool, str | None]:
     script_name = f"temp_script_{task_id}.py"
     output_name_host = os.path.join(STORAGE_DIR, f"result_{task_id}.pkl")
-    
+
     with open(script_name, "w", encoding="utf-8") as f:
         f.write(code)
 
     try:
-        res = subprocess.run([
-            "docker", "run", "--rm", 
-            "-v", f"{os.getcwd()}:/app",
-            "synthgen-env", 
-            "python", f"/app/{script_name}"
-        ], capture_output=True, text=True, encoding="utf-8", timeout=120)
+        res = subprocess.run(
+            [
+                "docker",
+                "run",
+                "--rm",
+                "-v",
+                f"{os.getcwd()}:/app",
+                "synthgen-env",
+                "python",
+                f"/app/{script_name}",
+            ],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=120,
+        )
 
         if res.returncode != 0:
-            return False, res.stderr 
-        
-        if not os.path.exists(output_name_host) or os.path.getsize(output_name_host) < 10:
-            return False, f"Файл не был создан или поврежден."
-            
+            return False, res.stderr
+
+        if (
+            not os.path.exists(output_name_host)
+            or os.path.getsize(output_name_host) < 10
+        ):
+            return False, "Файл не был создан или поврежден."
+
         return True, None
     except subprocess.TimeoutExpired:
         return False, "Превышено время ожидания исполнения (120 с)."
