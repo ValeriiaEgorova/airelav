@@ -131,6 +131,53 @@ npm run dev
 ```
 *The UI will start at `http://localhost:5173`*
 
+## 👨‍💻 Development & Code Quality
+
+We use strict code quality standards to ensure maintainability and reliability.
+
+### 1. Install Development Dependencies
+To install linters, formatters, and testing tools:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+### 2. Python (Backend) Quality Checks
+We use **Ruff** (linter), **Black** (formatter), and **Mypy** (static typing).
+
+```bash
+# Format code automatically
+black .
+
+# Check for bugs and style issues
+ruff check . --fix
+
+# Check static types
+mypy .
+```
+
+### 3. Vue.js (Frontend) Quality Checks
+We use **ESLint** and **Prettier**.
+
+```bash
+cd client
+
+# Check and fix issues
+npm run lint
+
+# Format code
+npm run format
+```
+
+### 4. VS Code Setup (Recommended)
+For the best experience, install these extensions:
+- **Python** (Microsoft)
+- **Ruff** (Charliermarsh)
+- **ESLint** (Microsoft)
+- **Prettier** (Esbenp)
+
+The project is configured to **format on save** automatically.
+
 ## 📂 Project Structure
 
 ```text
