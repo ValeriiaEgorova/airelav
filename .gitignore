@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -27,24 +26,19 @@ ENV/
 env/
 .venv
 
-# FastAPI & Uvicorn
 *.log
 
-# SQLite Database
 *.db
 *.sqlite
 *.sqlite3
 
-# Environment Variables
 .env
 .env.local
 .env.*.local
 
-# Storage (generated files ignored, but folder tracked with .gitkeep)
 storage/*
 !storage/.gitkeep
 
-# IDEs
 .vscode/
 .idea/
 *.swp
@@ -52,26 +46,21 @@ storage/*
 *~
 .DS_Store
 
-# Node.js & Vue
 node_modules/
 dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build outputs
 __pycache__
 *.egg-info
 .eggs
 
-# OS files
 .DS_Store
 Thumbs.db
 
-# Temp files
 *.tmp
 temp/
 .cache/
 
-# Docker
 .dockerignore
