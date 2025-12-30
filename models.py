@@ -1,7 +1,14 @@
+from sqlmodel import SQLModel, Field, Relationship
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from sqlalchemy import Column, JSON
-from sqlmodel import SQLModel, Field
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    hashed_password: str
+    
+    tasks: List["GenerationTask"] = Relationship(back_populates="user")
 
 class GenerationTask(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -17,3 +24,6 @@ class GenerationTask(SQLModel, table=True):
     preview_data: Optional[List[Dict[str, Any]]] = Field(default=None, sa_column=Column(JSON))
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    user: Optional[User] = Relationship(back_populates="tasks")
