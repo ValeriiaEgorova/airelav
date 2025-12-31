@@ -7,6 +7,7 @@
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.0+-4FC08D.svg)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
+[![airelav CI/CD](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml)
 
 ## 📖 Overview
 
