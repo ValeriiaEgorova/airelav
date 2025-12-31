@@ -1,37 +1,38 @@
 from fastapi.testclient import TestClient
 
+
 def test_register_user(client: TestClient):
     response = client.post(
-        "/auth/register", 
-        params={"email": "test@example.com", "password": "pass"}
+        "/auth/register", params={"email": "test@example.com", "password": "pass"}
     )
     assert response.status_code == 200
     assert response.json() == {"message": "User created successfully"}
 
+
 def test_login_user(client: TestClient):
     client.post("/auth/register", params={"email": "user@test.com", "password": "123"})
-    
+
     response = client.post(
-        "/token", 
-        data={"username": "user@test.com", "password": "123"} # OAuth2 form data
+        "/token",
+        data={"username": "user@test.com", "password": "123"},  # OAuth2 form data
     )
     assert response.status_code == 200
     data = response.json()
     assert "access_token" in data
     return data["access_token"]
 
+
 def test_create_generation_task(client: TestClient):
     token = test_login_user(client)
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
-        "/generate",
-        params={"prompt": "Test dataset"},
-        headers=headers
+        "/generate", params={"prompt": "Test dataset"}, headers=headers
     )
-    
+
     assert response.status_code == 200
     assert "task_id" in response.json()
+
 
 def test_history_protected(client: TestClient):
     response = client.get("/history")
