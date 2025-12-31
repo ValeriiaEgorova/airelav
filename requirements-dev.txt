@@ -9,4 +9,6 @@ types-passlib
 types-requests
 
 pytest
+pytest-asyncio
 httpx
+pytest-mock
