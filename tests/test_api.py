@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 
@@ -26,12 +28,13 @@ def test_create_generation_task(client: TestClient):
     token = test_login_user(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    response = client.post(
-        "/generate", params={"prompt": "Test dataset"}, headers=headers
-    )
+    with patch("main.run_generation_wrapper"):
+        response = client.post(
+            "/generate", params={"prompt": "Test dataset"}, headers=headers
+        )
 
-    assert response.status_code == 200
-    assert "task_id" in response.json()
+        assert response.status_code == 200
+        assert "task_id" in response.json()
 
 
 def test_history_protected(client: TestClient):
