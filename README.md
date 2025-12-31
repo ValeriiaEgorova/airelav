@@ -7,8 +7,7 @@
 ![Vue.js](https://img.shields.io/badge/Vue.js-3.0+-4FC08D.svg)
 ![Docker](https://img.shields.io/badge/Docker-Enabled-2496ED.svg)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)
-[![airelav CI/CD](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml)
-
+[![airelav CI/CD](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/ValeriiaEgorova/airelav/actions/workflows/ci-cd.yml)
 ## 📖 Overview
 
 **airelav** is a web-based platform that eliminates the need to manually create test data or write generation scripts. Users simply describe the desired dataset in English or Russian (e.g., *"List of 500 bank transactions with outliers in amounts"*), and the system automatically generates a valid **CSV**, **Excel**, or **JSON** file.
