@@ -41,7 +41,10 @@ def is_code_safe_and_valid(code: str) -> tuple[bool, str]:
 
 
 def generate_and_run(
-    user_query: str, task_id: int, on_progress: Any = None
+    user_query: str,
+    task_id: int,
+    previous_code: str | None = None,
+    on_progress: Any = None,
 ) -> dict[str, Any]:
 
     def log(message: str, percent: int) -> None:
@@ -60,8 +63,12 @@ def generate_and_run(
         current_attempt += 1
 
         if current_attempt == 1:
-            log("Генерация кода через Gemini...", 30)
-            code = get_generation_code(user_query, task_id)
+            if previous_code:
+                log("Модификация существующего кода...", 30)
+                code = get_modification_code(user_query, previous_code, task_id)
+            else:
+                log("Генерация кода с нуля...", 30)
+                code = get_generation_code(user_query, task_id)
         else:
             log(f"Попытка самоисправления {current_attempt-1}/{max_retries-1}...", 35)
             code = get_fix_from_llm(bad_code, last_error, task_id)
@@ -88,7 +95,7 @@ def generate_and_run(
             try:
                 df = pd.read_pickle(final_filename)
                 df = df.fillna("")
-                preview = df.head(5).astype(object).to_dict(orient="records")
+                preview = df.head(5).astype(str).to_dict(orient="records")
             except Exception as e:
                 print(f"Ошибка превью: {e}")
 
@@ -158,6 +165,39 @@ def get_fix_from_llm(
         return code
     except Exception as e:
         print(f"Ошибка Gemini API при фиксе: {e}")
+        return None
+
+
+def get_modification_code(
+    user_changes: str, old_code: str, task_id: int
+) -> str | None:
+
+    file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
+    save_cmd = f"df.to_pickle('{file_path_docker}')"
+
+    instr = f"""
+    Ты — Python Data Expert. Твоя задача — изменить существующий код генерации данных.
+    
+    СТАРЫЙ КОД:
+    {old_code}
+    
+    ТРЕБОВАНИЯ К ИЗМЕНЕНИЯМ: 
+    {user_changes}
+    
+    ПРАВИЛА:
+    1. Используй pandas и faker (ru_RU).
+    2. Сохрани итоговый DataFrame 'df' командой: {save_cmd}
+    3. НЕ используй print() и библиотеку os.
+    4. Верни ПОЛНЫЙ обновленный код, готовый к запуску (не diff, не куски).
+    5. Выдай ТОЛЬКО код без Markdown разметки.
+    """
+
+    try:
+        resp = client.models.generate_content(model=MODEL_ID, contents=instr)
+        code = re.sub(r"```python|```", "", resp.text).strip()
+        return code
+    except Exception as e:
+        print(f"Ошибка Gemini API (Modification): {e}")
         return None
 
 
