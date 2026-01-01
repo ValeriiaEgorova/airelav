@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
@@ -17,7 +17,7 @@ from auth import (
 )
 from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
-from models import GenerationTask, User
+from models import Conversation, GenerationTask, User
 
 app = FastAPI(title="SynthGen AI API")
 
@@ -39,7 +39,6 @@ def on_startup() -> None:
 def register(
     email: str, password: str, session: Session = Depends(get_session)
 ) -> dict[str, Any]:
-    """Регистрация нового пользователя"""
     existing_user = session.exec(select(User).where(User.email == email)).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -55,7 +54,6 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Вход в систему (получение JWT токена)"""
     user = session.exec(select(User).where(User.email == form_data.username)).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -68,37 +66,100 @@ def login(
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.delete("/history/{task_id}")
-async def delete_task(
-    task_id: int, 
+
+@app.get("/conversations")
+async def get_conversations(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
-):
-    task = session.get(GenerationTask, task_id)
-    if not task or task.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Task not found")
-    
-    if task.file_path and os.path.exists(task.file_path):
-        os.remove(task.file_path)
-        
-    session.delete(task)
+    session: Session = Depends(get_session),
+) -> Any:
+    return session.exec(
+        select(Conversation)
+        .where(Conversation.user_id == current_user.id)
+        .order_by(desc(Conversation.created_at))
+    ).all()
+
+
+@app.get("/conversations/{conversation_id}")
+async def get_conversation_history(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> Any:
+    chat = session.get(Conversation, conversation_id)
+    if not chat or chat.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    tasks = session.exec(
+        select(GenerationTask)
+        .where(GenerationTask.conversation_id == conversation_id)
+        .order_by(GenerationTask.created_at)
+    ).all()
+    return tasks
+
+
+@app.delete("/history/{conversation_id}")
+async def delete_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    chat = session.get(Conversation, conversation_id)
+    if not chat or chat.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    tasks = session.exec(
+        select(GenerationTask).where(GenerationTask.conversation_id == conversation_id)
+    ).all()
+    for task in tasks:
+        if task.file_path and os.path.exists(task.file_path):
+            try:
+                os.remove(task.file_path)
+            except OSError:
+                pass
+
+    session.delete(chat)
     session.commit()
-    return {"message": "Deleted"}
+    return {"message": "Conversation deleted"}
+
 
 @app.post("/generate")
 async def start_generation(
     prompt: str,
     background_tasks: BackgroundTasks,
-    parent_task_id: Optional[int] = None,
+    conversation_id: int | None = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     previous_code = None
-    if parent_task_id:
-        parent_task = session.get(GenerationTask, parent_task_id)
-        if parent_task and parent_task.user_id == current_user.id:
-            previous_code = parent_task.generated_code
-    task = GenerationTask(prompt=prompt, file_format="pkl", user_id=current_user.id)
+
+    if not conversation_id:
+        title = prompt[:40] + "..." if len(prompt) > 40 else prompt
+        new_chat = Conversation(title=title, user_id=current_user.id)
+        session.add(new_chat)
+        session.commit()
+        session.refresh(new_chat)
+        conversation_id = new_chat.id
+    else:
+        chat = session.get(Conversation, conversation_id)
+        if not chat or chat.user_id != current_user.id:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+
+        last_task = session.exec(
+            select(GenerationTask)
+            .where(GenerationTask.conversation_id == conversation_id)
+            .where(GenerationTask.status == "completed")
+            .order_by(desc(GenerationTask.created_at))
+        ).first()
+
+        if last_task:
+            previous_code = last_task.generated_code
+
+    task = GenerationTask(
+        prompt=prompt,
+        file_format="pkl",
+        user_id=current_user.id,
+        conversation_id=conversation_id,
+    )
     session.add(task)
     session.commit()
     session.refresh(task)
@@ -108,21 +169,24 @@ async def start_generation(
 
     background_tasks.add_task(run_generation_wrapper, task.id, previous_code)
 
-    return {"task_id": task.id, "message": "Генерация запущена"}
+    return {
+        "task_id": task.id,
+        "conversation_id": conversation_id,
+        "message": "Генерация запущена",
+    }
 
 
-@app.get("/history")
-async def get_history(
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-) -> Any:
-    """Получение истории задач текущего пользователя"""
-    tasks = session.exec(
-        select(GenerationTask)
-        .where(GenerationTask.user_id == current_user.id)
-        .order_by(desc(GenerationTask.created_at))
-    ).all()
-    return tasks
+# @app.get("/history")
+# async def get_history(
+#     current_user: User = Depends(get_current_user),
+#     session: Session = Depends(get_session),
+# ) -> Any:
+#     tasks = session.exec(
+#         select(GenerationTask)
+#         .where(GenerationTask.user_id == current_user.id)
+#         .order_by(desc(GenerationTask.created_at))
+#     ).all()
+#     return tasks
 
 
 @app.get("/download/{task_id}")
@@ -168,7 +232,7 @@ async def download_file(
         ) from e
 
 
-def run_generation_wrapper(task_id: int, previous_code: Optional[str] = None) -> None:
+def run_generation_wrapper(task_id: int, previous_code: str | None = None) -> None:
     with Session(engine) as session:
         task = session.get(GenerationTask, task_id)
         if not task:
@@ -186,7 +250,10 @@ def run_generation_wrapper(task_id: int, previous_code: Optional[str] = None) ->
             session.commit()
 
             result = generate_and_run(
-                user_query=task.prompt, task_id=task_id, previous_code=previous_code, on_progress=update_progress
+                user_query=task.prompt,
+                task_id=task_id,
+                previous_code=previous_code,
+                on_progress=update_progress,
             )
 
             if result["status"] == "success":
@@ -203,7 +270,10 @@ def run_generation_wrapper(task_id: int, previous_code: Optional[str] = None) ->
             session.commit()
 
         except Exception as e:
-            task.status = "failed"
-            task.error_log = str(e)
-            session.add(task)
-            session.commit()
+            session.rollback()
+            task = session.get(GenerationTask, task_id)
+            if task:
+                task.status = "failed"
+                task.error_log = f"Critical Error: {str(e)}"
+                session.add(task)
+                session.commit()

@@ -8,17 +8,15 @@ import ChatMessage from './chat/ChatMessage.vue';
 const router = useRouter();
 const API_URL = 'http://127.0.0.1:8000';
 
-// Состояние
 const prompt = ref('');
 const history = ref([]);
-const messages = ref([]); // Текущий чат
-const currentTaskId = ref(null); // ID активной задачи (для подсветки в меню)
-const currentParentId = ref(null); // ID для цепочки (context)
+const messages = ref([]); 
+const currentConversationId = ref(null);
 const isGenerating = ref(false);
 const userEmail = ref('');
-const chatContainer = ref(null); // Для автоскролла
+const chatContainer = ref(null);
+const pollingInterval = ref(null);
 
-// --- Настройка Axios ---
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -35,13 +33,17 @@ axios.interceptors.response.use(
   }
 );
 
-// --- Вспомогательные функции ---
 const parseJwt = (token) => {
   try {
     return JSON.parse(atob(token.split('.')[1])).sub;
   } catch (e) {
     return 'User';
   }
+};
+
+const logout = () => {
+  localStorage.removeItem('token');
+  router.push('/login');
 };
 
 const scrollToBottom = async () => {
@@ -51,53 +53,63 @@ const scrollToBottom = async () => {
   }
 };
 
-// --- Основная логика ---
-
 const fetchHistory = async () => {
   try {
-    const response = await axios.get(`${API_URL}/history`);
+    const response = await axios.get(`${API_URL}/conversations`);
     history.value = response.data;
   } catch (error) {
-    console.error(error);
+    console.error('Ошибка загрузки истории:', error);
   }
 };
 
 const startNewChat = () => {
-  currentTaskId.value = null;
-  currentParentId.value = null;
+  currentConversationId.value = null;
   messages.value = [];
   prompt.value = '';
+  if (pollingInterval.value) clearInterval(pollingInterval.value);
 };
 
-const selectChat = (item) => {
-  currentTaskId.value = item.id;
-  currentParentId.value = item.id; // Устанавливаем контекст на эту задачу
+const selectChat = async (conversation) => {
+  if (currentConversationId.value === conversation.id) return;
+
+  currentConversationId.value = conversation.id;
   prompt.value = '';
-  
-  // Восстанавливаем "чат" из одной задачи
-  // (В будущем можно сделать полноценную историю сообщений, если хранить их в БД)
-  messages.value = [
-    { role: 'user', content: item.prompt },
-    { 
-      role: 'ai', 
-      content: 'Вот результат генерации по этому запросу:',
-      task_id: item.id,
-      preview: item.preview_data,
-      loading: false,
-      error: item.status === 'failed'
-    }
-  ];
-  scrollToBottom();
+  if (pollingInterval.value) clearInterval(pollingInterval.value);
+
+  try {
+    const response = await axios.get(`${API_URL}/conversations/${conversation.id}`);
+    const tasks = response.data;
+
+    messages.value = [];
+    tasks.forEach((task) => {
+      messages.value.push({ role: 'user', content: task.prompt });
+
+      messages.value.push({
+        role: 'ai',
+        task_id: task.id,
+        content: task.status === 'completed' ? 'Готово! Вот результат:' : (task.error_log ? `Ошибка: ${task.error_log}` : 'Обработка...'),
+        preview: task.preview_data,
+        loading: task.status === 'pending' || task.status === 'processing',
+        error: task.status === 'failed',
+        progress: task.progress,
+        status_msg: task.status_message,
+      });
+    });
+
+    scrollToBottom();
+  } catch (error) {
+    console.error('Ошибка загрузки чата:', error);
+  }
 };
 
 const deleteChat = async (id) => {
-  if (!confirm('Удалить этот запрос?')) return;
+  if (!confirm('Вы уверены, что хотите удалить этот чат?')) return;
   try {
     await axios.delete(`${API_URL}/history/${id}`);
     await fetchHistory();
-    if (currentTaskId.value === id) startNewChat();
+    if (currentConversationId.value === id) startNewChat();
   } catch (error) {
-    alert('Ошибка удаления');
+    alert('Не удалось удалить чат');
   }
 };
 
@@ -105,88 +117,84 @@ const sendMessage = async () => {
   const text = prompt.value.trim();
   if (!text) return;
 
-  // 1. Добавляем сообщение пользователя
   messages.value.push({ role: 'user', content: text });
   prompt.value = '';
   isGenerating.value = true;
   scrollToBottom();
 
-  // 2. Добавляем заглушку ИИ
-  const aiMsg = ref({
+  const aiMessage = ref({
     role: 'ai',
     loading: true,
     progress: 0,
     status_msg: 'Инициализация...',
-    content: ''
+    content: '',
+    task_id: null,
+    preview: null,
   });
-  messages.value.push(aiMsg.value);
+  messages.value.push(aiMessage.value);
   scrollToBottom();
 
   try {
-    // 3. Отправляем запрос (с контекстом, если есть)
     const response = await axios.post(`${API_URL}/generate`, null, {
       params: { 
         prompt: text,
-        parent_task_id: currentParentId.value 
+        conversation_id: currentConversationId.value, 
       }
     });
 
-    const newTaskId = response.data.task_id;
+    const { task_id, conversation_id } = response.data;
+    aiMessage.value.task_id = task_id;
+
+    if (!currentConversationId.value) {
+      currentConversationId.value = conversation_id;
+      fetchHistory();
+    }
     
-    // 4. Поллинг статуса
-    const interval = setInterval(async () => {
+    pollingInterval.value = setInterval(async () => {
       try {
-        // Получаем свежую историю, чтобы узнать статус
-        // (В идеале сделать отдельный роут GET /tasks/{id})
-        await fetchHistory();
-        const task = history.value.find(t => t.id === newTaskId);
+        const chatRes = await axios.get(`${API_URL}/conversations/${conversation_id}`);
+        const tasks = chatRes.data;
+        const currentTaskData = tasks.find((t) => t.id === task_id);
 
-        if (task) {
-          aiMsg.value.progress = task.progress;
-          aiMsg.value.status_msg = task.status_message;
+        if (currentTaskData) {
+          aiMessage.value.progress = currentTaskData.progress;
+          aiMessage.value.status_msg = currentTaskData.status_message;
 
-          if (task.status === 'completed' || task.status === 'failed') {
-            clearInterval(interval);
+          if (currentTaskData.status === 'completed') {
+            aiMessage.value.loading = false;
+            aiMessage.value.content = 'Готово! Вот результат:';
+            aiMessage.value.preview = currentTaskData.preview_data;
+            clearInterval(pollingInterval.value);
             isGenerating.value = false;
-
-            if (task.status === 'completed') {
-              aiMsg.value.loading = false;
-              aiMsg.value.content = 'Готово! Данные сгенерированы.';
-              aiMsg.value.preview = task.preview_data;
-              aiMsg.value.task_id = task.id;
-              
-              // Обновляем контекст на новую задачу
-              currentTaskId.value = task.id;
-              currentParentId.value = task.id;
-            } else {
-              aiMsg.value.loading = false;
-              aiMsg.value.error = true;
-              aiMsg.value.content = task.error_log || 'Неизвестная ошибка';
-            }
+            scrollToBottom();
+          } else if (currentTaskData.status === 'failed') {
+            aiMessage.value.loading = false;
+            aiMessage.value.error = true;
+            aiMessage.value.content = `Ошибка: ${currentTaskData.error_log}`;
+            clearInterval(pollingInterval.value);
+            isGenerating.value = false;
             scrollToBottom();
           }
         }
       } catch (e) {
-        console.error(e);
+        console.error("Ошибка поллинга:", e);
       }
     }, 2000);
 
   } catch (error) {
-    aiMsg.value.loading = false;
-    aiMsg.value.error = true;
-    aiMsg.value.content = 'Ошибка соединения с сервером';
+    console.error(error);
+    aiMessage.value.loading = false;
+    aiMessage.value.error = true;
+    aiMessage.value.content = 'Ошибка соединения с сервером.';
     isGenerating.value = false;
   }
 };
 
-const logout = () => {
-  localStorage.removeItem('token');
-  router.push('/login');
-};
-
 onMounted(() => {
   const token = localStorage.getItem('token');
-  if (token) userEmail.value = parseJwt(token);
+  if (token) {
+    userEmail.value = parseJwt(token);
+  }
   fetchHistory();
 });
 </script>
@@ -194,10 +202,9 @@ onMounted(() => {
 <template>
   <div class="flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
     
-    <!-- ЛЕВАЯ ПАНЕЛЬ -->
     <Sidebar 
       :history="history" 
-      :current-task-id="currentTaskId" 
+      :current-task-id="currentConversationId" 
       :user-email="userEmail"
       @select="selectChat"
       @delete="deleteChat"
@@ -205,10 +212,8 @@ onMounted(() => {
       @logout="logout"
     />
 
-    <!-- ПРАВАЯ ЧАСТЬ -->
     <main class="relative flex flex-1 flex-col">
       
-      <!-- Шапка -->
       <header class="flex h-14 items-center justify-between border-b border-slate-200 bg-white/70 px-6 backdrop-blur">
         <div class="flex rounded-xl bg-slate-100 p-1">
           <button class="rounded-lg bg-white px-4 py-1.5 text-sm font-medium shadow">GPT-4o</button>
@@ -216,10 +221,8 @@ onMounted(() => {
         </div>
       </header>
 
-      <!-- Область чата -->
       <div class="flex-1 overflow-y-auto px-6 py-10 pb-44 space-y-8" ref="chatContainer">
         
-        <!-- Приветствие (если пусто) -->
         <div v-if="messages.length === 0" class="mt-20 text-center">
           <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100">
             <i class="fas fa-magic text-2xl text-blue-600"></i>
@@ -228,7 +231,6 @@ onMounted(() => {
           <p class="mt-2 text-slate-500">Опишите структуру, и я создам данные, код и файлы.</p>
         </div>
 
-        <!-- Сообщения -->
         <ChatMessage 
           v-for="(msg, idx) in messages" 
           :key="idx" 
@@ -236,7 +238,6 @@ onMounted(() => {
         />
       </div>
 
-      <!-- Поле ввода (фиксировано внизу) -->
       <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-50 via-slate-50 to-transparent px-6 pb-6 pt-12">
         <div class="relative mx-auto max-w-4xl">
           <textarea 
@@ -266,7 +267,6 @@ onMounted(() => {
 </template>
 
 <style>
-/* Кастомный скроллбар */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
 </style>

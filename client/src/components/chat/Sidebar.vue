@@ -9,10 +9,8 @@ const props = defineProps({
 
 const emit = defineEmits(['select', 'delete', 'new', 'logout']);
 
-// Группировка истории (можно расширить логику на "Вчера", "Ранее")
 const todayHistory = computed(() => props.history);
 
-// Получение инициала для аватарки
 const userInitial = computed(() => {
   return props.userEmail ? props.userEmail[0].toUpperCase() : 'U';
 });
@@ -21,7 +19,6 @@ const userInitial = computed(() => {
 <template>
   <aside class="flex w-72 flex-col border-r border-slate-800 bg-slate-900 text-slate-300">
     
-    <!-- Логотип -->
     <div class="flex h-16 items-center border-b border-slate-800 px-6">
       <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow">
         <i class="fas fa-cube text-sm text-white"></i>
@@ -29,7 +26,6 @@ const userInitial = computed(() => {
       <span class="font-semibold text-white">SynthGen AI</span>
     </div>
 
-    <!-- Кнопка Новый чат -->
     <div class="p-4">
       <button 
         @click="$emit('new')"
@@ -41,7 +37,6 @@ const userInitial = computed(() => {
       </button>
     </div>
 
-    <!-- Список истории -->
     <div class="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
       <div class="px-3 py-2 text-xs uppercase tracking-wider text-slate-500">История</div>
 
@@ -53,9 +48,8 @@ const userInitial = computed(() => {
         :class="item.id === currentTaskId ? 'bg-slate-800 text-white shadow' : 'hover:bg-slate-800 text-slate-400'"
       >
         <i class="far fa-comment-alt" :class="item.id === currentTaskId ? 'text-blue-400' : 'text-slate-500'"></i>
-        <span class="flex-1 truncate text-sm">{{ item.prompt }}</span>
+        <span class="flex-1 truncate text-sm">{{ item.title }}</span>
         
-        <!-- Кнопка удаления (появляется при наведении) -->
         <button 
           @click.stop="$emit('delete', item.id)"
           class="text-slate-500 opacity-0 transition hover:text-red-400 group-hover:opacity-100"
@@ -66,7 +60,6 @@ const userInitial = computed(() => {
       </div>
     </div>
 
-    <!-- Профиль -->
     <div class="border-t border-slate-800 p-4">
       <div class="flex items-center gap-3 rounded-xl p-2 transition hover:bg-slate-800">
         <div class="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-purple-400 to-pink-500 text-xs font-bold text-white">

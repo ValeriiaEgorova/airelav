@@ -2,7 +2,8 @@ import ast
 import os
 import re
 import subprocess
-from typing import Any, Optional, Dict
+from typing import Any
+
 import pandas as pd
 from dotenv import load_dotenv
 from google import genai
@@ -40,7 +41,10 @@ def is_code_safe_and_valid(code: str) -> tuple[bool, str]:
 
 
 def generate_and_run(
-    user_query: str, task_id: int, previous_code: Optional[str] = None, on_progress: Any = None
+    user_query: str,
+    task_id: int,
+    previous_code: str | None = None,
+    on_progress: Any = None,
 ) -> dict[str, Any]:
 
     def log(message: str, percent: int) -> None:
@@ -91,7 +95,7 @@ def generate_and_run(
             try:
                 df = pd.read_pickle(final_filename)
                 df = df.fillna("")
-                preview = df.head(5).astype(object).to_dict(orient="records")
+                preview = df.head(5).astype(str).to_dict(orient="records")
             except Exception as e:
                 print(f"Ошибка превью: {e}")
 
@@ -163,7 +167,10 @@ def get_fix_from_llm(
         print(f"Ошибка Gemini API при фиксе: {e}")
         return None
 
-def get_modification_code(user_changes: str, old_code: str, task_id: int) -> Optional[str]:
+
+def get_modification_code(
+    user_changes: str, old_code: str, task_id: int
+) -> str | None:
 
     file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
     save_cmd = f"df.to_pickle('{file_path_docker}')"
@@ -184,17 +191,15 @@ def get_modification_code(user_changes: str, old_code: str, task_id: int) -> Opt
     4. Верни ПОЛНЫЙ обновленный код, готовый к запуску (не diff, не куски).
     5. Выдай ТОЛЬКО код без Markdown разметки.
     """
-    
+
     try:
-        resp = client.models.generate_content(
-            model=MODEL_ID, 
-            contents=instr
-        )
-        code = re.sub(r'```python|```', '', resp.text).strip()
+        resp = client.models.generate_content(model=MODEL_ID, contents=instr)
+        code = re.sub(r"```python|```", "", resp.text).strip()
         return code
     except Exception as e:
         print(f"Ошибка Gemini API (Modification): {e}")
         return None
+
 
 def run_in_sandbox(code: str, task_id: int) -> tuple[bool, str | None]:
     script_name = f"temp_script_{task_id}.py"

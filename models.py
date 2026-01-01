@@ -11,6 +11,18 @@ class User(SQLModel, table=True):
     hashed_password: str
 
     tasks: list["GenerationTask"] = Relationship(back_populates="user")
+    conversations: list["Conversation"] = Relationship(back_populates="user")
+
+
+class Conversation(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    title: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: int | None = Field(default=None, foreign_key="user.id")
+    user: User | None = Relationship(back_populates="conversations")
+
+    tasks: list["GenerationTask"] = Relationship(back_populates="conversation")
 
 
 class GenerationTask(SQLModel, table=True):
@@ -24,11 +36,15 @@ class GenerationTask(SQLModel, table=True):
     generated_code: str | None = None
     file_path: str | None = None
     error_log: str | None = None
+
     preview_data: list[dict[str, Any]] | None = Field(
         default=None, sa_column=Column(JSON)
     )
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    conversation_id: int | None = Field(default=None, foreign_key="conversation.id")
+    conversation: Conversation | None = Relationship(back_populates="tasks")
 
     user_id: int | None = Field(default=None, foreign_key="user.id")
     user: User | None = Relationship(back_populates="tasks")
