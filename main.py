@@ -1,6 +1,6 @@
 import io
 import os
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
@@ -68,15 +68,36 @@ def login(
     access_token = create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
+@app.delete("/history/{task_id}")
+async def delete_task(
+    task_id: int, 
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    task = session.get(GenerationTask, task_id)
+    if not task or task.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if task.file_path and os.path.exists(task.file_path):
+        os.remove(task.file_path)
+        
+    session.delete(task)
+    session.commit()
+    return {"message": "Deleted"}
 
 @app.post("/generate")
 async def start_generation(
     prompt: str,
     background_tasks: BackgroundTasks,
+    parent_task_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Запуск генерации данных"""
+    previous_code = None
+    if parent_task_id:
+        parent_task = session.get(GenerationTask, parent_task_id)
+        if parent_task and parent_task.user_id == current_user.id:
+            previous_code = parent_task.generated_code
     task = GenerationTask(prompt=prompt, file_format="pkl", user_id=current_user.id)
     session.add(task)
     session.commit()
@@ -85,7 +106,7 @@ async def start_generation(
     if task.id is None:
         raise HTTPException(status_code=500, detail="Database error: Task ID missing")
 
-    background_tasks.add_task(run_generation_wrapper, task.id)
+    background_tasks.add_task(run_generation_wrapper, task.id, previous_code)
 
     return {"task_id": task.id, "message": "Генерация запущена"}
 
@@ -147,14 +168,13 @@ async def download_file(
         ) from e
 
 
-def run_generation_wrapper(task_id: int) -> None:
-    """Функция-обертка для запуска ядра в фоновом режиме"""
+def run_generation_wrapper(task_id: int, previous_code: Optional[str] = None) -> None:
     with Session(engine) as session:
         task = session.get(GenerationTask, task_id)
         if not task:
             return
 
-        def update_progress(msg, percent):
+        def update_progress(msg: str, percent: int) -> None:
             task.status_message = msg
             task.progress = percent
             session.add(task)
@@ -166,7 +186,7 @@ def run_generation_wrapper(task_id: int) -> None:
             session.commit()
 
             result = generate_and_run(
-                user_query=task.prompt, task_id=task_id, on_progress=update_progress
+                user_query=task.prompt, task_id=task_id, previous_code=previous_code, on_progress=update_progress
             )
 
             if result["status"] == "success":
