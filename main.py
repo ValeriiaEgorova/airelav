@@ -261,6 +261,8 @@ def run_generation_wrapper(task_id: int, previous_code: str | None = None) -> No
                 task.file_path = result["file"]
                 task.generated_code = result["code"]
                 task.preview_data = result.get("preview")
+                task.file_size = result.get("file_size")
+                task.row_count = result.get("row_count")
                 task.progress = 100
             else:
                 task.status = "failed"

@@ -92,8 +92,12 @@ def generate_and_run(
 
             log("Генерация предпросмотра...", 90)
             preview = []
+            file_size = 0
+            row_count = 0
             try:
                 df = pd.read_pickle(final_filename)
+                row_count = len(df)
+                file_size = os.path.getsize(final_filename)
                 df = df.fillna("")
                 preview = df.head(5).astype(str).to_dict(orient="records")
             except Exception as e:
@@ -105,6 +109,8 @@ def generate_and_run(
                 "file": final_filename,
                 "code": code,
                 "preview": preview,
+                "file_size": file_size,
+                "row_count": row_count
             }
         else:
             log("Ошибка при исполнении. Попытка анализа...", 80)
