@@ -41,6 +41,9 @@ class GenerationTask(SQLModel, table=True):
         default=None, sa_column=Column(JSON)
     )
 
+    file_size: int | None = None
+    row_count: int | None = None
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     conversation_id: int | None = Field(default=None, foreign_key="conversation.id")

@@ -89,6 +89,8 @@ const selectChat = async (conversation) => {
         task_id: task.id,
         content: task.status === 'completed' ? 'Готово! Вот результат:' : (task.error_log ? `Ошибка: ${task.error_log}` : 'Обработка...'),
         preview: task.preview_data,
+        file_size: task.file_size,
+        row_count: task.row_count,
         loading: task.status === 'pending' || task.status === 'processing',
         error: task.status === 'failed',
         progress: task.progress,
@@ -164,6 +166,8 @@ const sendMessage = async () => {
             aiMessage.value.loading = false;
             aiMessage.value.content = 'Готово! Вот результат:';
             aiMessage.value.preview = currentTaskData.preview_data;
+            aiMessage.value.file_size = currentTaskData.file_size;
+            aiMessage.value.row_count = currentTaskData.row_count;
             clearInterval(pollingInterval.value);
             isGenerating.value = false;
             scrollToBottom();

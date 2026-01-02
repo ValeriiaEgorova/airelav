@@ -4,6 +4,22 @@ const props = defineProps({
 });
 
 const API_URL = 'http://127.0.0.1:8000';
+
+const formatBytes = (bytes, decimals = 2) => {
+  if (!bytes || bytes === 0) return '0 B';
+
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
+
+const formatNumber = (num) => {
+  return num ? num.toLocaleString('ru-RU') : '0';
+};
 </script>
 
 <template>
@@ -73,12 +89,29 @@ const API_URL = 'http://127.0.0.1:8000';
               </table>
             </div>
             
-            <div class="border-t border-gray-200 bg-gray-50 px-4 py-2 text-center">
+            <!-- <div class="border-t border-gray-200 bg-gray-50 px-4 py-2 text-center">
               <span class="text-xs text-gray-400">Показана часть данных. Скачайте файл для полного доступа.</span>
+            </div> -->
+            
+            <div class="border-t border-slate-200 bg-slate-50 px-4 py-2 flex justify-between items-center">
+              
+              <div class="flex items-center gap-3 text-xs text-slate-500 font-medium">
+                <span v-if="message.row_count !== undefined">
+                  <i class="fas fa-list-ol mr-1"></i> {{ formatNumber(message.row_count) }} строк
+                </span>
+                <span v-if="message.file_size !== undefined">
+                  <i class="fas fa-weight-hanging mr-1"></i> {{ formatBytes(message.file_size) }}
+                </span>
+              </div>
+
+              <span class="text-xs text-slate-400">
+                Показаны первые 5 строк
+              </span>
+
             </div>
+
           </div>
         </div>
-
       </div>
     </div>
   </div>
