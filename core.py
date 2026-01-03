@@ -12,8 +12,9 @@ load_dotenv()
 
 API_KEY = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=API_KEY)
-MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-2.5-flash-lite")
+# MODEL_ID = os.getenv("GEMINI_MODEL_ID", "gemini-2.5-flash-lite")
 STORAGE_DIR = "storage"
+DEFAULT_MODEL = "gemini-2.5-flash"
 
 os.makedirs(STORAGE_DIR, exist_ok=True)
 
@@ -45,6 +46,7 @@ def generate_and_run(
     task_id: int,
     previous_code: str | None = None,
     on_progress: Any = None,
+    model_name: str = DEFAULT_MODEL
 ) -> dict[str, Any]:
 
     def log(message: str, percent: int) -> None:
@@ -65,13 +67,13 @@ def generate_and_run(
         if current_attempt == 1:
             if previous_code:
                 log("Модификация существующего кода...", 30)
-                code = get_modification_code(user_query, previous_code, task_id)
+                code = get_modification_code(user_query, previous_code, task_id, model_name)
             else:
                 log("Генерация кода с нуля...", 30)
-                code = get_generation_code(user_query, task_id)
+                code = get_generation_code(user_query, task_id, model_name)
         else:
-            log(f"Попытка самоисправления {current_attempt-1}/{max_retries-1}...", 35)
-            code = get_fix_from_llm(bad_code, last_error, task_id)
+            log(f"Попытка самоисправления {model_name} {current_attempt-1}/{max_retries-1}...", 35)
+            code = get_fix_from_llm(bad_code, last_error, task_id, model_name)
 
         if not code:
             return {"status": "error", "message": "Gemini вернула пустой ответ."}
@@ -123,7 +125,7 @@ def generate_and_run(
     }
 
 
-def get_generation_code(prompt: str, task_id: int) -> str | None:
+def get_generation_code(prompt: str, task_id: int, model_name: str) -> str | None:
     file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
 
     cmd = f"df.to_pickle('{file_path_docker}')"
@@ -138,7 +140,7 @@ def get_generation_code(prompt: str, task_id: int) -> str | None:
 
     try:
         resp = client.models.generate_content(
-            model=MODEL_ID, contents=f"{instr}\nЗапрос пользователя: {prompt}"
+            model=model_name, contents=f"{instr}\nЗапрос пользователя: {prompt}"
         )
         text_response = resp.text if resp.text else ""
         code = re.sub(r"```python|```", "", text_response).strip()
@@ -149,7 +151,7 @@ def get_generation_code(prompt: str, task_id: int) -> str | None:
 
 
 def get_fix_from_llm(
-    bad_code: str | None, error_msg: str | None, task_id: int
+    bad_code: str | None, error_msg: str | None, task_id: int, model_name: str
 ) -> str | None:
     if not bad_code or not error_msg:
         return None
@@ -165,7 +167,7 @@ def get_fix_from_llm(
     Выдай только полный исправленный код без пояснений.
     """
     try:
-        resp = client.models.generate_content(model=MODEL_ID, contents=prompt)
+        resp = client.models.generate_content(model=model_name, contents=prompt)
         text_response = resp.text if resp.text else ""
         code = re.sub(r"```python|```", "", text_response).strip()
         return code
@@ -175,7 +177,7 @@ def get_fix_from_llm(
 
 
 def get_modification_code(
-    user_changes: str, old_code: str, task_id: int
+    user_changes: str, old_code: str, task_id: int, model_name: str
 ) -> str | None:
 
     file_path_docker = f"{STORAGE_DIR}/result_{task_id}.pkl"
@@ -199,7 +201,7 @@ def get_modification_code(
     """
 
     try:
-        resp = client.models.generate_content(model=MODEL_ID, contents=instr)
+        resp = client.models.generate_content(model=model_name, contents=instr)
         code = re.sub(r"```python|```", "", resp.text).strip()
         return code
     except Exception as e:

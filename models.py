@@ -44,6 +44,8 @@ class GenerationTask(SQLModel, table=True):
     file_size: int | None = None
     row_count: int | None = None
 
+    ai_model: str = Field(default="gemini-2.5-flash")
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     conversation_id: int | None = Field(default=None, foreign_key="conversation.id")

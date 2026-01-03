@@ -16,6 +16,8 @@ const isGenerating = ref(false);
 const userEmail = ref('');
 const chatContainer = ref(null);
 const pollingInterval = ref(null);
+const selectedModel = ref('gemini-2.5-flash'); 
+
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -60,6 +62,10 @@ const fetchHistory = async () => {
   } catch (error) {
     console.error('Ошибка загрузки истории:', error);
   }
+};
+
+const setModel = (model) => {
+  selectedModel.value = model;
 };
 
 const startNewChat = () => {
@@ -140,7 +146,8 @@ const sendMessage = async () => {
     const response = await axios.post(`${API_URL}/generate`, null, {
       params: { 
         prompt: text,
-        conversation_id: currentConversationId.value, 
+        conversation_id: currentConversationId.value,
+        model: selectedModel.value
       }
     });
 
@@ -220,8 +227,21 @@ onMounted(() => {
       
       <header class="flex h-14 items-center justify-between border-b border-slate-200 bg-white/70 px-6 backdrop-blur">
         <div class="flex rounded-xl bg-slate-100 p-1">
-          <button class="rounded-lg bg-white px-4 py-1.5 text-sm font-medium shadow">GPT-4o</button>
-          <button class="px-4 py-1.5 text-sm text-slate-500">Synthetic v2</button>
+          <button 
+            @click="setModel('gemini-2.5-flash')"
+            class="px-4 py-1.5 text-sm font-medium rounded-lg transition-all"
+            :class="selectedModel === 'gemini-2.5-flash' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+          >
+            Flash 2.5
+          </button>
+          
+          <button 
+            @click="setModel('gemini-2.5-flash-lite')"
+            class="px-4 py-1.5 text-sm font-medium rounded-lg transition-all"
+            :class="selectedModel === 'gemini-2.5-flash-lite' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
+          >
+            Flash Lite
+          </button>
         </div>
       </header>
 
