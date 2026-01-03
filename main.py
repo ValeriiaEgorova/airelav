@@ -126,6 +126,7 @@ async def delete_conversation(
 async def start_generation(
     prompt: str,
     background_tasks: BackgroundTasks,
+    model: str = "gemini-2.5-flash",
     conversation_id: int | None = None,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
@@ -159,6 +160,7 @@ async def start_generation(
         file_format="pkl",
         user_id=current_user.id,
         conversation_id=conversation_id,
+        ai_model=model
     )
     session.add(task)
     session.commit()
@@ -167,7 +169,7 @@ async def start_generation(
     if task.id is None:
         raise HTTPException(status_code=500, detail="Database error: Task ID missing")
 
-    background_tasks.add_task(run_generation_wrapper, task.id, previous_code)
+    background_tasks.add_task(run_generation_wrapper, task.id, previous_code, model)
 
     return {
         "task_id": task.id,
@@ -232,7 +234,7 @@ async def download_file(
         ) from e
 
 
-def run_generation_wrapper(task_id: int, previous_code: str | None = None) -> None:
+def run_generation_wrapper(task_id: int, previous_code: str | None = None, model_name: str = "gemini-2.5-flash") -> None:
     with Session(engine) as session:
         task = session.get(GenerationTask, task_id)
         if not task:
@@ -254,6 +256,7 @@ def run_generation_wrapper(task_id: int, previous_code: str | None = None) -> No
                 task_id=task_id,
                 previous_code=previous_code,
                 on_progress=update_progress,
+                model_name=model_name
             )
 
             if result["status"] == "success":

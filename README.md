@@ -181,7 +181,7 @@ The project is configured to **format on save** automatically.
 ## 📂 Project Structure
 
 ```text
-synthgen-ai/
+airelav/
 ├── client/                 # Vue.js Frontend
 │   ├── src/
 │   │   ├── components/     # Login, Dashboard, etc.
