@@ -262,7 +262,7 @@ onMounted(() => {
           </button>
         </div>
         <p class="mt-3 text-center text-xs text-slate-400">
-          SynthGen может допускать ошибки. Проверяйте важные данные.
+          AIrelav может допускать ошибки. Проверяйте важные данные.
         </p>
       </div>
 
