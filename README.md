@@ -26,7 +26,7 @@ The core technology uses **Google Gemini LLM** to interpret requirements and wri
 *   **Framework:** FastAPI (Python)
 *   **Database:** PostgreSQL (via Docker Compose)
 *   **ORM:** SQLModel (SQLAlchemy)
-*   **AI Model:** Google Gemini 2.0 Flash (via `google-genai`)
+*   **AI Model:** Google Gemini 2.5 Flash (via `google-genai`)
 *   **Security:** Passlib (Bcrypt), Python-JOSE (JWT)
 
 ### Frontend
@@ -77,7 +77,7 @@ Create a `.env` file in the root directory and populate it with your keys:
 ```ini
 # Google Gemini API Key (Get from https://aistudio.google.com/)
 GEMINI_API_KEY="YOUR_GEMINI_KEY_HERE"
-GEMINI_MODEL="gemini-2.0-flash"
+GEMINI_MODEL="gemini-2.5-flash"
 
 # Security (Generate a random string: openssl rand -hex 32)
 SECRET_KEY="your_super_secret_key"
@@ -85,12 +85,12 @@ ALGORITHM="HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 
 # Database (PostgreSQL)
-DB_USER=synth_user
-DB_PASSWORD=synth_pass
-DB_NAME=synthgen_db
+DB_USER=airelav_user
+DB_PASSWORD=airelav_pass
+DB_NAME=airelav_db
 DB_HOST=localhost
 DB_PORT=5432
-DATABASE_URL=postgresql://synth_user:synth_pass@localhost:5432/synthgen_db
+DATABASE_URL=postgresql://airelav_user:airelav_pass@localhost:5432/airelav_db
 ```
 
 ### 4. Infrastructure Setup (Docker)

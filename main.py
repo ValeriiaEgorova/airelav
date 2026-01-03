@@ -19,7 +19,7 @@ from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
 from models import Conversation, GenerationTask, User
 
-app = FastAPI(title="SynthGen AI API")
+app = FastAPI(title="AIrelav API")
 
 app.add_middleware(
     CORSMiddleware,

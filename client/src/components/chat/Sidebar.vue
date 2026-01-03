@@ -23,7 +23,7 @@ const userInitial = computed(() => {
       <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow">
         <i class="fas fa-cube text-sm text-white"></i>
       </div>
-      <span class="font-semibold text-white">SynthGen AI</span>
+      <span class="font-semibold text-white">AIrelav</span>
     </div>
 
     <div class="p-4">
