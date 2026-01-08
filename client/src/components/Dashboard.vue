@@ -10,14 +10,13 @@ const API_URL = 'http://127.0.0.1:8000';
 
 const prompt = ref('');
 const history = ref([]);
-const messages = ref([]); 
+const messages = ref([]);
 const currentConversationId = ref(null);
 const isGenerating = ref(false);
 const userEmail = ref('');
 const chatContainer = ref(null);
 const pollingInterval = ref(null);
-const selectedModel = ref('gemini-2.5-flash'); 
-
+const selectedModel = ref('gemini-2.5-flash');
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -83,7 +82,9 @@ const selectChat = async (conversation) => {
   if (pollingInterval.value) clearInterval(pollingInterval.value);
 
   try {
-    const response = await axios.get(`${API_URL}/conversations/${conversation.id}`);
+    const response = await axios.get(
+      `${API_URL}/conversations/${conversation.id}`
+    );
     const tasks = response.data;
 
     messages.value = [];
@@ -93,7 +94,12 @@ const selectChat = async (conversation) => {
       messages.value.push({
         role: 'ai',
         task_id: task.id,
-        content: task.status === 'completed' ? 'Готово! Вот результат:' : (task.error_log ? `Ошибка: ${task.error_log}` : 'Обработка...'),
+        content:
+          task.status === 'completed'
+            ? 'Готово! Вот результат:'
+            : task.error_log
+              ? `Ошибка: ${task.error_log}`
+              : 'Обработка...',
         preview: task.preview_data,
         file_size: task.file_size,
         row_count: task.row_count,
@@ -143,12 +149,10 @@ const sendMessage = async () => {
   scrollToBottom();
 
   try {
-    const response = await axios.post(`${API_URL}/generate`, null, {
-      params: { 
-        prompt: text,
-        conversation_id: currentConversationId.value,
-        model: selectedModel.value
-      }
+    const response = await axios.post(`${API_URL}/generate`, {
+      prompt: text,
+      conversation_id: currentConversationId.value,
+      model: selectedModel.value, // Убедитесь, что эта переменная есть в setup
     });
 
     const { task_id, conversation_id } = response.data;
@@ -158,10 +162,12 @@ const sendMessage = async () => {
       currentConversationId.value = conversation_id;
       fetchHistory();
     }
-    
+
     pollingInterval.value = setInterval(async () => {
       try {
-        const chatRes = await axios.get(`${API_URL}/conversations/${conversation_id}`);
+        const chatRes = await axios.get(
+          `${API_URL}/conversations/${conversation_id}`
+        );
         const tasks = chatRes.data;
         const currentTaskData = tasks.find((t) => t.id === task_id);
 
@@ -188,10 +194,9 @@ const sendMessage = async () => {
           }
         }
       } catch (e) {
-        console.error("Ошибка поллинга:", e);
+        console.error('Ошибка поллинга:', e);
       }
     }, 2000);
-
   } catch (error) {
     console.error(error);
     aiMessage.value.loading = false;
@@ -211,11 +216,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800">
-    
-    <Sidebar 
-      :history="history" 
-      :current-task-id="currentConversationId" 
+  <div
+    class="flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800"
+  >
+    <Sidebar
+      :history="history"
+      :current-task-id="currentConversationId"
       :user-email="userEmail"
       @select="selectChat"
       @delete="deleteChat"
@@ -224,58 +230,73 @@ onMounted(() => {
     />
 
     <main class="relative flex flex-1 flex-col">
-      
-      <header class="flex h-14 items-center justify-between border-b border-slate-200 bg-white/70 px-6 backdrop-blur">
+      <header
+        class="flex h-14 items-center justify-between border-b border-slate-200 bg-white/70 px-6 backdrop-blur"
+      >
         <div class="flex rounded-xl bg-slate-100 p-1">
-          <button 
+          <button
+            class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all"
+            :class="
+              selectedModel === 'gemini-2.5-flash'
+                ? 'text-brand-600 bg-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            "
             @click="setModel('gemini-2.5-flash')"
-            class="px-4 py-1.5 text-sm font-medium rounded-lg transition-all"
-            :class="selectedModel === 'gemini-2.5-flash' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
           >
             Flash 2.5
           </button>
-          
-          <button 
+
+          <button
+            class="rounded-lg px-4 py-1.5 text-sm font-medium transition-all"
+            :class="
+              selectedModel === 'gemini-2.5-flash-lite'
+                ? 'text-brand-600 bg-white shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            "
             @click="setModel('gemini-2.5-flash-lite')"
-            class="px-4 py-1.5 text-sm font-medium rounded-lg transition-all"
-            :class="selectedModel === 'gemini-2.5-flash-lite' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'"
           >
             Flash Lite
           </button>
         </div>
       </header>
 
-      <div class="flex-1 overflow-y-auto px-6 py-10 pb-44 space-y-8" ref="chatContainer">
-        
+      <div
+        ref="chatContainer"
+        class="flex-1 space-y-8 overflow-y-auto px-6 py-10 pb-44"
+      >
         <div v-if="messages.length === 0" class="mt-20 text-center">
-          <div class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100">
+          <div
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100"
+          >
             <i class="fas fa-magic text-2xl text-blue-600"></i>
           </div>
-          <h2 class="text-2xl font-bold text-slate-800">Какой датасет вам нужен?</h2>
-          <p class="mt-2 text-slate-500">Опишите структуру, и я создам данные, код и файлы.</p>
+          <h2 class="text-2xl font-bold text-slate-800">
+            Какой датасет вам нужен?
+          </h2>
+          <p class="mt-2 text-slate-500">
+            Опишите структуру, и я создам данные, код и файлы.
+          </p>
         </div>
 
-        <ChatMessage 
-          v-for="(msg, idx) in messages" 
-          :key="idx" 
-          :message="msg" 
-        />
+        <ChatMessage v-for="(msg, idx) in messages" :key="idx" :message="msg" />
       </div>
 
-      <div class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-50 via-slate-50 to-transparent px-6 pb-6 pt-12">
+      <div
+        class="absolute bottom-0 left-0 w-full bg-gradient-to-t from-slate-50 via-slate-50 to-transparent px-6 pb-6 pt-12"
+      >
         <div class="relative mx-auto max-w-4xl">
-          <textarea 
+          <textarea
             v-model="prompt"
-            @keydown.enter.prevent="sendMessage"
             class="w-full resize-none rounded-2xl border border-slate-200 px-5 py-4 pr-16 shadow-lg outline-none transition focus:border-transparent focus:ring-2 focus:ring-blue-500"
             placeholder="Опишите данные или внесите правки..."
             rows="3"
+            @keydown.enter.prevent="sendMessage"
           ></textarea>
-          
-          <button 
-            @click="sendMessage"
+
+          <button
             :disabled="isGenerating || !prompt.trim()"
             class="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow transition hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50"
+            @click="sendMessage"
           >
             <i v-if="!isGenerating" class="fas fa-arrow-up"></i>
             <i v-else class="fas fa-spinner fa-spin"></i>
@@ -285,12 +306,16 @@ onMounted(() => {
           AIrelav может допускать ошибки. Проверяйте важные данные.
         </p>
       </div>
-
     </main>
   </div>
 </template>
 
 <style>
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
 </style>

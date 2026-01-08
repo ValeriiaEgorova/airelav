@@ -1,8 +1,16 @@
 from datetime import datetime
 from typing import Any
 
+from pydantic import BaseModel
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    model: str = "gemini-2.0-flash"
+    conversation_id: int | None = None
+    parent_task_id: int | None = None
 
 
 class User(SQLModel, table=True):
@@ -12,6 +20,8 @@ class User(SQLModel, table=True):
 
     tasks: list["GenerationTask"] = Relationship(back_populates="user")
     conversations: list["Conversation"] = Relationship(back_populates="user")
+
+    api_keys: list["APIKey"] = Relationship(back_populates="user")
 
 
 class Conversation(SQLModel, table=True):
@@ -53,3 +63,14 @@ class GenerationTask(SQLModel, table=True):
 
     user_id: int | None = Field(default=None, foreign_key="user.id")
     user: User | None = Relationship(back_populates="tasks")
+
+
+class APIKey(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    key: str = Field(index=True)
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    user_id: int | None = Field(default=None, foreign_key="user.id")
+    user: User | None = Relationship(back_populates="api_keys")
