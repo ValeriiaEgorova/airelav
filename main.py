@@ -1,5 +1,6 @@
 import io
 import os
+import secrets
 from typing import Any
 
 import pandas as pd
@@ -12,12 +13,13 @@ from sqlmodel import Session, desc, select
 from auth import (
     create_access_token,
     get_current_user,
+    get_current_user_or_api_key,
     get_password_hash,
     verify_password,
 )
 from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
-from models import Conversation, GenerationTask, User
+from models import APIKey, Conversation, GenerateRequest, GenerationTask, User
 
 app = FastAPI(title="AIrelav API")
 
@@ -92,7 +94,7 @@ async def get_conversation_history(
     tasks = session.exec(
         select(GenerationTask)
         .where(GenerationTask.conversation_id == conversation_id)
-        .order_by(GenerationTask.created_at)
+        .order_by(desc(GenerationTask.created_at))
     ).all()
     return tasks
 
@@ -124,14 +126,16 @@ async def delete_conversation(
 
 @app.post("/generate")
 async def start_generation(
-    prompt: str,
+    request: GenerateRequest,
     background_tasks: BackgroundTasks,
-    model: str = "gemini-2.5-flash",
-    conversation_id: int | None = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_or_api_key),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     previous_code = None
+
+    prompt = request.prompt
+    model = request.model
+    conversation_id = request.conversation_id
 
     if not conversation_id:
         title = prompt[:40] + "..." if len(prompt) > 40 else prompt
@@ -160,7 +164,7 @@ async def start_generation(
         file_format="pkl",
         user_id=current_user.id,
         conversation_id=conversation_id,
-        ai_model=model
+        ai_model=model,
     )
     session.add(task)
     session.commit()
@@ -176,6 +180,44 @@ async def start_generation(
         "conversation_id": conversation_id,
         "message": "Генерация запущена",
     }
+
+
+@app.get("/api-keys")
+def get_api_keys(
+    user: User = Depends(get_current_user), session: Session = Depends(get_session)
+):
+    return user.api_keys
+
+
+@app.post("/api-keys")
+def create_api_key(
+    name: str,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    random_part = secrets.token_urlsafe(16)
+    new_key_str = f"sk-relav-{random_part}"
+
+    key_obj = APIKey(name=name, key=new_key_str, user_id=user.id)
+    session.add(key_obj)
+    session.commit()
+    session.refresh(key_obj)
+    return key_obj
+
+
+@app.delete("/api-keys/{key_id}")
+def delete_api_key(
+    key_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    key = session.get(APIKey, key_id)
+    if not key or key.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Key not found")
+
+    session.delete(key)
+    session.commit()
+    return {"message": "Key deleted"}
 
 
 # @app.get("/history")
@@ -234,16 +276,20 @@ async def download_file(
         ) from e
 
 
-def run_generation_wrapper(task_id: int, previous_code: str | None = None, model_name: str = "gemini-2.5-flash") -> None:
+def run_generation_wrapper(
+    task_id: int, previous_code: str | None = None, model_name: str = "gemini-2.5-flash"
+) -> None:
     with Session(engine) as session:
         task = session.get(GenerationTask, task_id)
         if not task:
             return
 
+        task_local: GenerationTask = task
+
         def update_progress(msg: str, percent: int) -> None:
-            task.status_message = msg
-            task.progress = percent
-            session.add(task)
+            task_local.status_message = msg
+            task_local.progress = percent
+            session.add(task_local)
             session.commit()
 
         try:
@@ -256,7 +302,7 @@ def run_generation_wrapper(task_id: int, previous_code: str | None = None, model
                 task_id=task_id,
                 previous_code=previous_code,
                 on_progress=update_progress,
-                model_name=model_name
+                model_name=model_name,
             )
 
             if result["status"] == "success":
@@ -282,3 +328,28 @@ def run_generation_wrapper(task_id: int, previous_code: str | None = None, model
                 task.error_log = f"Critical Error: {str(e)}"
                 session.add(task)
                 session.commit()
+
+
+@app.get("/tasks/{task_id}")
+def get_task_status(
+    task_id: int,
+    current_user: User = Depends(get_current_user_or_api_key),
+    session: Session = Depends(get_session),
+) -> Any:
+    """Проверка статуса конкретной задачи"""
+    task = session.get(GenerationTask, task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    if task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this task")
+
+    return {
+        "id": task.id,
+        "status": task.status,
+        "progress": task.progress,
+        "status_message": task.status_message,
+        "preview_data": task.preview_data,
+        "error_log": task.error_log,
+    }

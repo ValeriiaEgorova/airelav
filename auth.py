@@ -8,7 +8,7 @@ from passlib.context import CryptContext
 from sqlmodel import Session, select
 
 from database import get_session
-from models import User
+from models import APIKey, User
 
 SECRET_KEY = os.getenv("SECRET_KEY", "")
 
@@ -47,8 +47,8 @@ async def get_current_user(
     )
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str | None = payload.get("sub")
-        if email is None:
+        email: str = payload.get("sub") or ""
+        if not email:
             raise credentials_exception
     except JWTError as e:
         raise credentials_exception from e
@@ -57,3 +57,53 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+
+async def get_current_user_optional(
+    token: str = Depends(OAuth2PasswordBearer(tokenUrl="token", auto_error=False)),
+    session: Session = Depends(get_session),
+) -> User | None:
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email = payload.get("sub")
+        if not email:
+            return None
+        user = session.exec(select(User).where(User.email == email)).first()
+        return user
+    except JWTError:
+        return None
+
+
+async def get_user_by_api_key(
+    api_key_header: str = Depends(
+        OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
+    ),
+    session: Session = Depends(get_session),
+) -> User | None:
+    if not api_key_header:
+        return None
+
+    api_key_obj = session.exec(
+        select(APIKey).where(APIKey.key == api_key_header)
+    ).first()
+
+    if api_key_obj and api_key_obj.is_active:
+        return api_key_obj.user
+    return None
+
+
+async def get_current_user_or_api_key(
+    jwt_user: User | None = Depends(get_current_user_optional),
+    api_key_user: User | None = Depends(get_user_by_api_key),
+) -> User:
+    if jwt_user:
+        return jwt_user
+    if api_key_user:
+        return api_key_user
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid credentials (JWT or API Key required)",
+    )

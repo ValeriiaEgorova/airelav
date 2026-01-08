@@ -46,7 +46,7 @@ def generate_and_run(
     task_id: int,
     previous_code: str | None = None,
     on_progress: Any = None,
-    model_name: str = DEFAULT_MODEL
+    model_name: str = DEFAULT_MODEL,
 ) -> dict[str, Any]:
 
     def log(message: str, percent: int) -> None:
@@ -67,12 +67,17 @@ def generate_and_run(
         if current_attempt == 1:
             if previous_code:
                 log("Модификация существующего кода...", 30)
-                code = get_modification_code(user_query, previous_code, task_id, model_name)
+                code = get_modification_code(
+                    user_query, previous_code, task_id, model_name
+                )
             else:
                 log("Генерация кода с нуля...", 30)
                 code = get_generation_code(user_query, task_id, model_name)
         else:
-            log(f"Попытка самоисправления {model_name} {current_attempt-1}/{max_retries-1}...", 35)
+            log(
+                f"Попытка самоисправления {model_name} {current_attempt-1}/{max_retries-1}...",
+                35,
+            )
             code = get_fix_from_llm(bad_code, last_error, task_id, model_name)
 
         if not code:
@@ -112,7 +117,7 @@ def generate_and_run(
                 "code": code,
                 "preview": preview,
                 "file_size": file_size,
-                "row_count": row_count
+                "row_count": row_count,
             }
         else:
             log("Ошибка при исполнении. Попытка анализа...", 80)
@@ -185,13 +190,10 @@ def get_modification_code(
 
     instr = f"""
     Ты — Python Data Expert. Твоя задача — изменить существующий код генерации данных.
-    
     СТАРЫЙ КОД:
     {old_code}
-    
-    ТРЕБОВАНИЯ К ИЗМЕНЕНИЯМ: 
+    ТРЕБОВАНИЯ К ИЗМЕНЕНИЯМ:
     {user_changes}
-    
     ПРАВИЛА:
     1. Используй pandas и faker (ru_RU).
     2. Сохрани итоговый DataFrame 'df' командой: {save_cmd}
@@ -202,7 +204,8 @@ def get_modification_code(
 
     try:
         resp = client.models.generate_content(model=model_name, contents=instr)
-        code = re.sub(r"```python|```", "", resp.text).strip()
+        text_response = resp.text if resp.text else ""
+        code = re.sub(r"```python|```", "", text_response).strip()
         return code
     except Exception as e:
         print(f"Ошибка Gemini API (Modification): {e}")
