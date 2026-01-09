@@ -15,8 +15,7 @@ def test_login_user(client: TestClient):
     client.post("/auth/register", params={"email": "user@test.com", "password": "123"})
 
     response = client.post(
-        "/token",
-        data={"username": "user@test.com", "password": "123"},  # OAuth2 form data
+        "/token", data={"username": "user@test.com", "password": "123"}
     )
     assert response.status_code == 200
     data = response.json()
@@ -30,13 +29,18 @@ def test_create_generation_task(client: TestClient):
 
     with patch("main.run_generation_wrapper"):
         response = client.post(
-            "/generate", params={"prompt": "Test dataset"}, headers=headers
+            "/generate",
+            json={"prompt": "Test dataset", "model": "gemini-1.5-flash"},
+            headers=headers,
         )
+
+        if response.status_code != 200:
+            print(response.json())
 
         assert response.status_code == 200
         assert "task_id" in response.json()
 
 
 def test_history_protected(client: TestClient):
-    response = client.get("/history")
+    response = client.get("/conversations")
     assert response.status_code == 401
