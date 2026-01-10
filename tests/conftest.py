@@ -45,14 +45,9 @@ def disable_rate_limiting():
     Полностью отключает RateLimiter.
     """
 
-    # 1. Функция без аргументов.
-    # FastAPI увидит её, поймет, что ей ничего не нужно, и просто вызовет.
     async def mock_call():
         return None
 
-    # 2. Патчим __call__.
-    # Важно: используем side_effect, чтобы подменить логику вызова.
     with patch("fastapi_limiter.depends.RateLimiter.__call__", side_effect=mock_call):
-        # 3. Патчим init, чтобы не требовал Redis
         with patch("fastapi_limiter.FastAPILimiter.init", new=AsyncMock()):
             yield
