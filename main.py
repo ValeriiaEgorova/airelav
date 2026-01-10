@@ -1,13 +1,18 @@
 import io
 import os
 import secrets
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
+import redis.asyncio as redis
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
+from fastapi_limiter import FastAPILimiter
+from fastapi_limiter.depends import RateLimiter
+from sqlalchemy import func
 from sqlmodel import Session, desc, select
 
 from auth import (
@@ -32,9 +37,29 @@ app.add_middleware(
 )
 
 
+async def get_user_tier_limit(
+    current_user: User = Depends(get_current_user_or_api_key),
+) -> tuple[int, int]:
+    """
+    Возвращает (количество_запросов, секунд).
+    Например: (5, 60) = 5 запросов в минуту.
+    """
+    if current_user.tier == "pro":
+        return 50, 60  # Pro: 50 запросов в минуту
+    elif current_user.tier == "enterprise":
+        return 1000, 60  # Enterprise: почти безлимит
+    else:
+        return 10, 60  # Free: 10 запросов в минуту
+
+
 @app.on_event("startup")
-def on_startup() -> None:
+async def on_startup() -> None:
     create_db_and_tables()
+
+    redis_connection = redis.from_url(
+        "redis://localhost:6379", encoding="utf-8", decode_responses=True
+    )
+    await FastAPILimiter.init(redis_connection)
 
 
 @app.post("/auth/register")
@@ -124,13 +149,29 @@ async def delete_conversation(
     return {"message": "Conversation deleted"}
 
 
-@app.post("/generate")
+@app.post("/generate", dependencies=[Depends(RateLimiter(times=20, seconds=60))])
 async def start_generation(
     request: GenerateRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user_or_api_key),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+
+    if current_user.tier == "free":
+        one_day_ago = datetime.utcnow() - timedelta(days=1)
+        count: int = session.exec(
+            select(func.count())
+            .select_from(GenerationTask)
+            .where(GenerationTask.user_id == current_user.id)
+            .where(GenerationTask.created_at > one_day_ago)
+        ).one()
+
+        if count >= 10:
+            raise HTTPException(
+                status_code=429,
+                detail="Лимит тарифа Free исчерпан (10 генераций в сутки).",
+            )
+
     previous_code = None
 
     prompt = request.prompt

@@ -2,6 +2,8 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel, create_engine
@@ -35,3 +37,22 @@ def client_fixture(session: Session):
     client = TestClient(app)
     yield client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limiting():
+    """
+    Полностью отключает RateLimiter.
+    """
+
+    # 1. Функция без аргументов.
+    # FastAPI увидит её, поймет, что ей ничего не нужно, и просто вызовет.
+    async def mock_call():
+        return None
+
+    # 2. Патчим __call__.
+    # Важно: используем side_effect, чтобы подменить логику вызова.
+    with patch("fastapi_limiter.depends.RateLimiter.__call__", side_effect=mock_call):
+        # 3. Патчим init, чтобы не требовал Redis
+        with patch("fastapi_limiter.FastAPILimiter.init", new=AsyncMock()):
+            yield
