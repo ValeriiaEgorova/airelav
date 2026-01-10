@@ -7,9 +7,10 @@ const props = defineProps({
   history: { type: Array, default: () => [] },
   currentTaskId: { type: Number, default: null },
   userEmail: { type: String, default: 'User' },
+  hasMore: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['select', 'delete', 'new', 'logout']);
+const emit = defineEmits(['select', 'delete', 'new', 'logout', 'load-more']);
 const route = useRoute();
 const router = useRouter();
 
@@ -78,6 +79,15 @@ const isApiPage = computed(() => route.path === '/api-settings');
             @click.stop="$emit('delete', item.id)"
           >
             <i class="fas fa-trash-alt"></i>
+          </button>
+        </div>
+
+        <div v-if="hasMore" class="px-3 py-2">
+          <button
+            class="w-full rounded-lg border border-slate-700 py-2 text-xs font-medium text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            @click="$emit('load-more')"
+          >
+            Загрузить еще...
           </button>
         </div>
       </div>

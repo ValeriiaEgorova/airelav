@@ -17,6 +17,8 @@ const userEmail = ref('');
 const chatContainer = ref(null);
 const pollingInterval = ref(null);
 const selectedModel = ref('gemini-2.5-flash');
+const limit = 3;
+const hasMoreHistory = ref(true);
 
 axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -54,10 +56,37 @@ const scrollToBottom = async () => {
   }
 };
 
-const fetchHistory = async () => {
+const fetchHistory = async (reset = true) => {
   try {
-    const response = await axios.get(`${API_URL}/conversations`);
-    history.value = response.data;
+    // 1. Вычисляем offset автоматически
+    // Если это сброс (reset=true), начинаем с 0.
+    // Если догрузка (reset=false), пропускаем столько элементов, сколько уже есть в списке.
+    const requestOffset = reset ? 0 : history.value.length;
+
+    const response = await axios.get(`${API_URL}/conversations`, {
+      params: {
+        offset: requestOffset,
+        limit: limit,
+      },
+    });
+
+    const newItems = response.data;
+
+    // 2. Проверяем, есть ли еще данные
+    // Если пришло меньше чем лимит (или 0), значит это конец.
+    if (newItems.length < limit) {
+      hasMoreHistory.value = false;
+    } else {
+      hasMoreHistory.value = true;
+    }
+
+    // 3. Обновляем список
+    if (reset) {
+      history.value = newItems;
+    } else {
+      // Добавляем новые элементы в конец массива
+      history.value.push(...newItems);
+    }
   } catch (error) {
     console.error('Ошибка загрузки истории:', error);
   }
@@ -211,7 +240,7 @@ onMounted(() => {
   if (token) {
     userEmail.value = parseJwt(token);
   }
-  fetchHistory();
+  fetchHistory(true);
 });
 </script>
 
@@ -223,10 +252,12 @@ onMounted(() => {
       :history="history"
       :current-task-id="currentConversationId"
       :user-email="userEmail"
+      :has-more="hasMoreHistory"
       @select="selectChat"
       @delete="deleteChat"
       @new="startNewChat"
       @logout="logout"
+      @load-more="fetchHistory(false)"
     />
 
     <main class="relative flex flex-1 flex-col">

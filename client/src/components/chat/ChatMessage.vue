@@ -14,17 +14,17 @@ const downloadFile = async (taskId, format) => {
     const url = window.URL.createObjectURL(new Blob([response.data]));
     const link = document.createElement('a');
     link.href = url;
-    
+
     link.setAttribute('download', `dataset_${taskId}.${format}`);
-    
+
     document.body.appendChild(link);
     link.click();
-    
+
     link.parentNode.removeChild(link);
     window.URL.revokeObjectURL(url);
   } catch (error) {
-    console.error("Ошибка скачивания:", error);
-    alert("Не удалось скачать файл. Возможно, сессия истекла.");
+    console.error('Ошибка скачивания:', error);
+    alert('Не удалось скачать файл. Возможно, сессия истекла.');
   }
 };
 
@@ -107,29 +107,33 @@ const formatNumber = (num) => {
             v-if="message.preview"
             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow"
           >
-            <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
-              <span class="text-xs font-semibold text-slate-500">Предпросмотр</span>
+            <div
+              class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2"
+            >
+              <span class="text-xs font-semibold text-slate-500"
+                >Предпросмотр</span
+              >
               <div class="flex gap-2">
                 <!-- КНОПКА CSV -->
-                <button 
-                  @click="downloadFile(message.task_id, 'csv')" 
-                  class="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50 transition flex items-center gap-1"
+                <button
+                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-green-600 transition hover:bg-green-50"
+                  @click="downloadFile(message.task_id, 'csv')"
                 >
                   <i class="fas fa-file-csv"></i> CSV
                 </button>
-                
+
                 <!-- КНОПКА JSON -->
-                <button 
-                  @click="downloadFile(message.task_id, 'json')" 
-                  class="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
+                <button
+                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 transition hover:bg-blue-50"
+                  @click="downloadFile(message.task_id, 'json')"
                 >
                   <i class="fas fa-file-code"></i> JSON
                 </button>
-                
+
                 <!-- КНОПКА XLSX -->
-                <button 
-                  @click="downloadFile(message.task_id, 'xlsx')" 
-                  class="rounded px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 transition flex items-center gap-1"
+                <button
+                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-emerald-600 transition hover:bg-emerald-50"
+                  @click="downloadFile(message.task_id, 'xlsx')"
                 >
                   <i class="fas fa-file-excel"></i> XLSX
                 </button>
