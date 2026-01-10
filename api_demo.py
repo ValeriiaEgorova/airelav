@@ -4,7 +4,7 @@ import time
 import requests
 
 BASE_URL = "http://127.0.0.1:8000"
-API_KEY = ""  # <--- ВАШ КЛЮЧ ЗДЕСЬ
+API_KEY = "sk-relav-RRxSscBKk1D2_7T6rorVFw"  # <--- ВАШ КЛЮЧ ЗДЕСЬ
 
 headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
