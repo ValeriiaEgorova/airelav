@@ -16,8 +16,7 @@ def test_login_user(client: TestClient):
     client.post("/auth/register", params={"email": "user@test.com", "password": "123"})
 
     response = client.post(
-        "/token",
-        data={"username": "user@test.com", "password": "123"},  # OAuth2 form data
+        "/token", data={"username": "user@test.com", "password": "123"}
     )
     assert response.status_code == 200
     data = response.json()

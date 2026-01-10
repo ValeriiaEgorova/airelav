@@ -276,15 +276,22 @@ def delete_api_key(
 
 @app.get("/download/{task_id}")
 async def download_file(
-    task_id: int, format: str = "csv", session: Session = Depends(get_session)
+    task_id: int,
+    format: str = "csv",
+    current_user: User = Depends(get_current_user_or_api_key),
+    session: Session = Depends(get_session),
 ) -> StreamingResponse:
+    """Скачивание файла с конвертацией (Только для владельца)"""
     task = session.get(GenerationTask, task_id)
+
     if not task or not task.file_path or not os.path.exists(task.file_path):
         raise HTTPException(status_code=404, detail="Файл данных не найден")
 
+    if task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Нет доступа к этому файлу")
+
     try:
         df = pd.read_pickle(task.file_path)
-
         stream = io.BytesIO()
 
         if format == "csv":
@@ -302,7 +309,9 @@ async def download_file(
             )
             filename = f"dataset_{task_id}.xlsx"
         else:
-            raise HTTPException(status_code=400, detail="Unsupported format")
+            raise HTTPException(
+                status_code=400, detail="Unsupported format: use csv, json, or xlsx"
+            )
 
         stream.seek(0)
         return StreamingResponse(
