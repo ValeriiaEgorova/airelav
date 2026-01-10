@@ -18,6 +18,8 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     hashed_password: str
 
+    tier: str = Field(default="free")  # free, pro, enterprise
+
     tasks: list["GenerationTask"] = Relationship(back_populates="user")
     conversations: list["Conversation"] = Relationship(back_populates="user")
 
