@@ -1,7 +1,32 @@
 <script setup>
+import axios from 'axios';
 const props = defineProps({
   message: { type: Object, required: true },
 });
+
+const downloadFile = async (taskId, format) => {
+  try {
+    const response = await axios.get(`${API_URL}/download/${taskId}`, {
+      params: { format },
+      responseType: 'blob', // Важно! Говорим, что ждем бинарный файл
+    });
+
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    
+    link.setAttribute('download', `dataset_${taskId}.${format}`);
+    
+    document.body.appendChild(link);
+    link.click();
+    
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Ошибка скачивания:", error);
+    alert("Не удалось скачать файл. Возможно, сессия истекла.");
+  }
+};
 
 const API_URL = 'http://127.0.0.1:8000';
 
@@ -82,31 +107,32 @@ const formatNumber = (num) => {
             v-if="message.preview"
             class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow"
           >
-            <div
-              class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2"
-            >
-              <span class="text-xs font-semibold text-slate-500"
-                >Предпросмотр (5 строк)</span
-              >
+            <div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2">
+              <span class="text-xs font-semibold text-slate-500">Предпросмотр</span>
               <div class="flex gap-2">
-                <a
-                  :href="`${API_URL}/download/${message.task_id}?format=csv`"
-                  target="_blank"
-                  class="rounded px-2 py-1 text-xs text-green-600 transition hover:bg-green-50"
-                  ><i class="fas fa-file-csv"></i> CSV</a
+                <!-- КНОПКА CSV -->
+                <button 
+                  @click="downloadFile(message.task_id, 'csv')" 
+                  class="rounded px-2 py-1 text-xs text-green-600 hover:bg-green-50 transition flex items-center gap-1"
                 >
-                <a
-                  :href="`${API_URL}/download/${message.task_id}?format=json`"
-                  target="_blank"
-                  class="rounded px-2 py-1 text-xs text-blue-600 transition hover:bg-blue-50"
-                  ><i class="fas fa-file-code"></i> JSON</a
+                  <i class="fas fa-file-csv"></i> CSV
+                </button>
+                
+                <!-- КНОПКА JSON -->
+                <button 
+                  @click="downloadFile(message.task_id, 'json')" 
+                  class="rounded px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 transition flex items-center gap-1"
                 >
-                <a
-                  :href="`${API_URL}/download/${message.task_id}?format=xlsx`"
-                  target="_blank"
-                  class="rounded px-2 py-1 text-xs text-emerald-600 transition hover:bg-emerald-50"
-                  ><i class="fas fa-file-excel"></i> XLSX</a
+                  <i class="fas fa-file-code"></i> JSON
+                </button>
+                
+                <!-- КНОПКА XLSX -->
+                <button 
+                  @click="downloadFile(message.task_id, 'xlsx')" 
+                  class="rounded px-2 py-1 text-xs text-emerald-600 hover:bg-emerald-50 transition flex items-center gap-1"
                 >
+                  <i class="fas fa-file-excel"></i> XLSX
+                </button>
               </div>
             </div>
 
