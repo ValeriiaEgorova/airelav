@@ -96,6 +96,8 @@ def login(
 
 @app.get("/conversations")
 async def get_conversations(
+    offset: int = 0,
+    limit: int = 20,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Any:
@@ -103,6 +105,8 @@ async def get_conversations(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
         .order_by(desc(Conversation.created_at))
+        .offset(offset)
+        .limit(limit)
     ).all()
 
 
