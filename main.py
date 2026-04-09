@@ -24,7 +24,7 @@ from auth import (
 )
 from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
-from models import APIKey, Conversation, GenerateRequest, GenerationTask, User
+from models import APIKey, Conversation, GenerateRequest, GenerationTask, User, EnhancePromptRequest
 
 app = FastAPI(title="AIrelav API")
 
@@ -418,3 +418,46 @@ def get_task_status(
         "preview_data": task.preview_data,
         "error_log": task.error_log,
     }
+
+@app.post("/enhance-prompt", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+async def enhance_prompt(
+    request: EnhancePromptRequest,
+    current_user: User = Depends(get_current_user_or_api_key),
+) -> dict[str, str]:
+    
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt is empty")
+
+    system_instruction = """
+    Ты — Data Engineer. Твоя задача: улучшить короткий запрос пользователя для генератора синтетических данных.
+    
+    ПРАВИЛА:
+    1. Сделай запрос более профессиональным: добавь нужные колонки, распределения (например, нормальное) или логические связи (например, "зарплата зависит от должности").
+    2. КРАТКОСТЬ: Твой ответ должен быть ОЧЕНЬ лаконичным (максимум 2-3 предложения).
+    3. ЛИМИТ СИМВОЛОВ: Строго уложись в 800 символов.
+    4. Ответь ТОЛЬКО улучшенным текстом, без приветствий, без пояснений, без кавычек.
+    5. Сохраняй язык оригинала (русский или английский).
+    
+    Пример:
+    Оригинал: "сделай базу сотрудников"
+    Улучшение: "Сгенерируй датасет из 500 сотрудников: ФИО, email (5% ошибок), должность, зарплата (зависит от должности) и дата найма (2020-2024)."
+    """
+    
+    try:
+        from core import client, DEFAULT_MODEL
+        
+        resp = client.models.generate_content(
+            model=DEFAULT_MODEL,
+            contents=f"{system_instruction}\n\nОРИГИНАЛЬНЫЙ ЗАПРОС:\n{request.prompt}"
+        )
+        
+        enhanced_text = resp.text.strip() if resp.text else request.prompt
+        
+        if len(enhanced_text) > 990:
+            enhanced_text = enhanced_text[:990] + "..."
+            
+        return {"enhanced_prompt": enhanced_text}
+        
+    except Exception as e:
+        print(f"Enhance error: {e}")
+        return {"enhanced_prompt": request.prompt}

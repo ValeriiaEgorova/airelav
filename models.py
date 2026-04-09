@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
+class EnhancePromptRequest(BaseModel):
+    prompt: str
 
 class GenerateRequest(BaseModel):
     prompt: str = Field(..., min_length=5, max_length=1000, description="Текст запроса для LLM")

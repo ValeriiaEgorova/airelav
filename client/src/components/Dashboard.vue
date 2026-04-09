@@ -20,6 +20,29 @@ const isNearLimit = computed(() => charCount.value > MAX_CHARS * 0.9);
 const isOverLimit = computed(() => charCount.value >= MAX_CHARS);
 // ------------------------------
 
+const isEnhancing = ref(false);
+
+const enhancePrompt = async () => {
+  const text = prompt.value.trim();
+  if (!text || isEnhancing.value || isGenerating.value) return;
+
+  isEnhancing.value = true;
+  
+  try {
+    const response = await axios.post(`${API_URL}/enhance-prompt`, {
+      prompt: text
+    });
+    
+    if (response.data && response.data.enhanced_prompt) {
+      prompt.value = response.data.enhanced_prompt;
+    }
+  } catch (error) {
+    console.error("Ошибка при улучшении промпта:", error);
+  } finally {
+    isEnhancing.value = false;
+  }
+};
+
 const scrollToBottom = async () => {
   await nextTick();
   if (chatContainer.value) {
@@ -184,9 +207,20 @@ onMounted(() => {
         <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2"
              :class="isOverLimit ? 'focus-within:ring-red-500/50 border-red-500/50' : 'focus-within:ring-primary/20'">
           
-          <button class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
-            <span class="material-symbols-outlined">attach_file</span>
-          </button>
+          <button 
+          @click="enhancePrompt"
+          :disabled="isEnhancing || !prompt.trim() || isGenerating"
+          title="Улучшить промпт с помощью ИИ"
+          class="w-12 h-12 flex items-center justify-center transition-colors group disabled:opacity-50 disabled:cursor-not-allowed"
+          :class="prompt.trim() ? 'text-primary hover:bg-primary/10 rounded-full' : 'text-on-surface-variant'"
+        >
+          <span v-if="!isEnhancing" class="material-symbols-outlined group-hover:scale-110 transition-transform">
+            auto_fix_high
+          </span>
+          <span v-else class="material-symbols-outlined animate-spin text-primary">
+            sync
+          </span>
+        </button>
           
           <textarea 
             v-model="prompt"
