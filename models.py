@@ -1,14 +1,14 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, Relationship, SQLModel
 
 
 class GenerateRequest(BaseModel):
-    prompt: str
-    model: str = "gemini-2.0-flash"
+    prompt: str = Field(..., min_length=5, max_length=1000, description="Текст запроса для LLM")
+    model: str = Field(default="gemini-2.5-flash")
     conversation_id: int | None = None
     parent_task_id: int | None = None
 

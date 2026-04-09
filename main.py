@@ -176,6 +176,18 @@ async def start_generation(
                 detail="Лимит тарифа Free исчерпан (10 генераций в сутки).",
             )
 
+    active_task = session.exec(
+        select(GenerationTask)
+        .where(GenerationTask.user_id == current_user.id)
+        .where(GenerationTask.status.in_(["pending", "processing"]))
+    ).first()
+
+    if active_task:
+        raise HTTPException(
+            status_code=429, # 429 Too Many Requests
+            detail="У вас уже выполняется генерация данных. Дождитесь её завершения перед отправкой нового запроса."
+        )
+    
     previous_code = None
 
     prompt = request.prompt
