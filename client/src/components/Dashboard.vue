@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue'; // <-- Добавили computed
 import axios from 'axios';
 import { chatStore } from '../chatStore';
 import ChatMessage from './chat/ChatMessage.vue';
@@ -12,6 +12,13 @@ const isGenerating = ref(false);
 const chatContainer = ref(null);
 const pollingInterval = ref(null);
 const selectedModel = ref('gemini-2.5-flash');
+
+// --- ЛОГИКА ЛИМИТА СИМВОЛОВ ---
+const MAX_CHARS = 1000;
+const charCount = computed(() => prompt.value.length);
+const isNearLimit = computed(() => charCount.value > MAX_CHARS * 0.9);
+const isOverLimit = computed(() => charCount.value >= MAX_CHARS);
+// ------------------------------
 
 const scrollToBottom = async () => {
   await nextTick();
@@ -65,7 +72,8 @@ watch(() => chatStore.currentConversationId, (newId) => {
 
 const sendMessage = async () => {
   const text = prompt.value.trim();
-  if (!text || isGenerating.value) return;
+  // Добавлена проверка на лимит перед отправкой
+  if (!text || isGenerating.value || isOverLimit.value) return;
 
   messages.value.push({ role: 'user', content: text });
   prompt.value = '';
@@ -88,7 +96,6 @@ const sendMessage = async () => {
     const { task_id, conversation_id } = response.data;
     aiMessage.value.task_id = task_id;
 
-    // Если это был новый чат - сохраняем ID и обновляем историю в сайдбаре
     if (!chatStore.currentConversationId) {
       chatStore.currentConversationId = conversation_id;
       chatStore.fetchHistory(true);
@@ -136,7 +143,6 @@ const sendMessage = async () => {
 };
 
 onMounted(() => {
-  // При загрузке проверяем, нет ли уже выбранного чата
   if (chatStore.currentConversationId) {
     loadFullChat(chatStore.currentConversationId);
   }
@@ -167,8 +173,16 @@ onMounted(() => {
 
     <!-- Поле ввода -->
     <footer class="absolute bottom-0 right-0 left-0 bg-gradient-to-t from-background via-background to-transparent pt-12 pb-8 px-4 md:px-8 z-10">
-      <div class="max-w-4xl mx-auto">
-        <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2 focus-within:ring-primary/20">
+      <div class="max-w-4xl mx-auto relative">
+        <!-- Анимация предупреждения о лимите над полем (опционально, если перебор) -->
+        <transition name="fade">
+          <div v-if="isOverLimit" class="absolute -top-8 left-0 right-0 text-center text-xs font-bold text-red-500 bg-red-100 py-1 rounded-full w-max mx-auto px-4 shadow-sm">
+            Max limit reached ({{ MAX_CHARS }} chars)
+          </div>
+        </transition>
+
+        <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2"
+             :class="isOverLimit ? 'focus-within:ring-red-500/50 border-red-500/50' : 'focus-within:ring-primary/20'">
           
           <button class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
             <span class="material-symbols-outlined">attach_file</span>
@@ -176,17 +190,28 @@ onMounted(() => {
           
           <textarea 
             v-model="prompt"
+            :maxlength="MAX_CHARS"
             @keydown.enter.prevent="sendMessage"
             class="flex-1 bg-transparent border-none focus:ring-0 py-3 px-2 text-on-surface resize-none font-medium placeholder:text-on-surface-variant/40 outline-none" 
             placeholder="Describe the dataset you want to generate..." 
             rows="1"
           ></textarea>
           
-          <div class="flex items-center gap-2 pr-2">
+          <div class="flex items-center gap-3 pr-2">
+            <!-- СЧЕТЧИК СИМВОЛОВ (Только если есть текст) -->
+            <span 
+              v-if="charCount > 0"
+              class="text-xs font-medium transition-colors"
+              :class="isNearLimit ? 'text-red-500' : 'text-on-surface-variant/50'"
+            >
+              {{ charCount }} / {{ MAX_CHARS }}
+            </span>
+
             <button 
-              :disabled="isGenerating || !prompt.trim()"
+              :disabled="isGenerating || !prompt.trim() || isOverLimit"
               @click="sendMessage"
-              class="bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              class="bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50 disabled:hover:scale-100"
+              :class="{'bg-red-500 shadow-red-500/30': isOverLimit}"
             >
               <span v-if="!isGenerating" class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
               <span v-else class="material-symbols-outlined animate-spin">sync</span>
@@ -212,4 +237,15 @@ onMounted(() => {
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e2db; border-radius: 10px; }
 .font-headline { font-family: 'Manrope', sans-serif; }
+
+/* Анимация для алерта лимита */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
 </style>
