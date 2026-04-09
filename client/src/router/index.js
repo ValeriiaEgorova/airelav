@@ -1,29 +1,23 @@
 import { createRouter, createWebHistory } from 'vue-router';
+import MainLayout from '../components/MainLayout.vue'; // Импорт оболочки
 import Login from '../components/Login.vue';
 import Dashboard from '../components/Dashboard.vue';
 import ApiSettings from '../components/ApiSettings.vue';
 
 const router = createRouter({
-  history: createWebHistory(import.meta.env.BASE_URL),
+  history: createWebHistory(),
   routes: [
-    {
-      path: '/login',
-      name: 'login',
-      component: Login,
-    },
+    { path: '/login', component: Login },
     {
       path: '/',
-      name: 'dashboard',
-      component: Dashboard,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/api-settings',
-      name: 'api-settings',
-      component: ApiSettings,
-      meta: { requiresAuth: true },
-    },
-  ],
+      component: MainLayout, // Главная оболочка
+      children: [
+        { path: '', name: 'dashboard', component: Dashboard },
+        { path: 'api-settings', name: 'api-settings', component: ApiSettings },
+      ],
+      meta: { requiresAuth: true }
+    }
+  ]
 });
 
 router.beforeEach((to, from, next) => {

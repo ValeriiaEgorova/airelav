@@ -4,11 +4,13 @@ const props = defineProps({
   message: { type: Object, required: true },
 });
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
 const downloadFile = async (taskId, format) => {
   try {
     const response = await axios.get(`${API_URL}/download/${taskId}`, {
       params: { format },
-      responseType: 'blob', // Важно! Говорим, что ждем бинарный файл
+      responseType: 'blob',
     });
 
     const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -28,17 +30,12 @@ const downloadFile = async (taskId, format) => {
   }
 };
 
-const API_URL = 'http://127.0.0.1:8000';
-
 const formatBytes = (bytes, decimals = 2) => {
   if (!bytes || bytes === 0) return '0 B';
-
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
@@ -49,148 +46,112 @@ const formatNumber = (num) => {
 
 <template>
   <div class="w-full">
-    <div v-if="message.role === 'user'" class="mb-8 flex justify-end">
-      <div
-        class="max-w-2xl rounded-2xl rounded-tr-sm bg-slate-100 px-6 py-4 text-slate-800 shadow-sm"
-      >
-        {{ message.content }}
+    <div v-if="message.role === 'user'" class="flex justify-end group mb-8">
+      <div class="max-w-[80%] flex flex-col items-end gap-2">
+        <div class="bg-surface-container-highest p-5 rounded-2xl rounded-tr-sm text-on-surface-variant font-medium leading-relaxed shadow-sm">
+          {{ message.content }}
+        </div>
       </div>
     </div>
 
-    <div v-else class="mb-8 flex max-w-4xl gap-4">
-      <div
-        class="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-blue-100"
-      >
-        <i class="fas fa-robot text-blue-600"></i>
-      </div>
+    <div v-else class="flex justify-start mb-8">
+      <div class="max-w-[95%] w-full flex flex-col items-start gap-4">
+        
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+            <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+          </div>
+          <span class="font-headline font-bold text-on-surface">Airelav AI</span>
+        </div>
 
-      <div class="w-full space-y-4">
-        <div v-if="message.loading" class="space-y-3">
-          <div class="flex items-center gap-3 text-sm text-slate-500">
-            <div class="flex gap-1">
+        <div class="w-full bg-surface-container-low/50 rounded-xl p-6 flex flex-col gap-6 shadow-sm border border-outline-variant/10">
+          
+          <div v-if="message.loading" class="space-y-4">
+            <div class="flex items-center gap-3 text-sm text-on-surface-variant font-medium">
+              <span class="material-symbols-outlined animate-spin text-primary">sync</span>
+              <span>{{ message.status_msg || 'Processing your request...' }}</span>
+            </div>
+            <div class="h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-container-highest">
               <div
-                class="h-2 w-2 animate-bounce rounded-full bg-blue-500"
-                style="animation-delay: -0.32s"
-              ></div>
-              <div
-                class="h-2 w-2 animate-bounce rounded-full bg-blue-500"
-                style="animation-delay: -0.16s"
-              ></div>
-              <div
-                class="h-2 w-2 animate-bounce rounded-full bg-blue-500"
+                class="h-full bg-primary transition-all duration-500 rounded-full"
+                :style="{ width: message.progress + '%' }"
               ></div>
             </div>
-            <span>{{ message.status_msg || 'Думаю...' }}</span>
           </div>
-          <div class="h-1 w-64 overflow-hidden rounded-full bg-slate-200">
-            <div
-              class="h-full bg-blue-500 transition-all duration-500"
-              :style="{ width: message.progress + '%' }"
-            ></div>
+
+          <div v-else-if="message.error" class="rounded-xl border border-error/20 bg-error-container/30 p-4 text-error">
+            <p class="font-bold flex items-center">
+              <span class="material-symbols-outlined mr-2 text-lg">error</span>
+              Generation Error
+            </p>
+            <p class="mt-1 text-sm font-medium">{{ message.content }}</p>
           </div>
-        </div>
 
-        <div
-          v-else-if="message.error"
-          class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700"
-        >
-          <p class="font-bold">
-            <i class="fas fa-exclamation-circle mr-2"></i>Ошибка генерации
-          </p>
-          <p class="mt-1 text-sm">{{ message.content }}</p>
-        </div>
-
-        <div v-else>
-          <p class="mb-3 text-slate-700">{{ message.content }}</p>
-
-          <div
-            v-if="message.preview"
-            class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow"
-          >
-            <div
-              class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2"
-            >
-              <span class="text-xs font-semibold text-slate-500"
-                >Предпросмотр</span
-              >
-              <div class="flex gap-2">
-                <!-- КНОПКА CSV -->
-                <button
-                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-green-600 transition hover:bg-green-50"
-                  @click="downloadFile(message.task_id, 'csv')"
-                >
-                  <i class="fas fa-file-csv"></i> CSV
+          <div v-else>
+            <div class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-6">
+              <div>
+                <h3 class="font-headline text-2xl font-bold text-on-surface tracking-tight">Dataset Generated</h3>
+                <p class="text-on-surface-variant text-sm mt-1">{{ message.content }}</p>
+              </div>
+              
+              <div v-if="message.preview" class="flex flex-wrap gap-2">
+                <button @click="downloadFile(message.task_id, 'csv')" class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest text-primary font-bold text-xs rounded-full hover:bg-white border border-outline-variant/10 shadow-sm transition-all">
+                  <span class="material-symbols-outlined text-sm">download</span> CSV
                 </button>
-
-                <!-- КНОПКА JSON -->
-                <button
-                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-blue-600 transition hover:bg-blue-50"
-                  @click="downloadFile(message.task_id, 'json')"
-                >
-                  <i class="fas fa-file-code"></i> JSON
+                <button @click="downloadFile(message.task_id, 'json')" class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest text-primary font-bold text-xs rounded-full hover:bg-white border border-outline-variant/10 shadow-sm transition-all">
+                  <span class="material-symbols-outlined text-sm">download</span> JSON
                 </button>
-
-                <!-- КНОПКА XLSX -->
-                <button
-                  class="flex items-center gap-1 rounded px-2 py-1 text-xs text-emerald-600 transition hover:bg-emerald-50"
-                  @click="downloadFile(message.task_id, 'xlsx')"
-                >
-                  <i class="fas fa-file-excel"></i> XLSX
+                <button @click="downloadFile(message.task_id, 'xlsx')" class="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-xs rounded-full shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+                  Export Excel
                 </button>
               </div>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200 text-sm">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th
-                      v-for="(key, idx) in Object.keys(message.preview[0])"
-                      :key="idx"
-                      class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500"
+            <div v-if="message.preview && message.preview.length" class="bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/10">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr class="bg-surface-container-low text-on-surface-variant">
+                      <th 
+                        v-for="(key, idx) in Object.keys(message.preview[0] || {})" 
+                        :key="idx"
+                        class="px-6 py-4 font-bold text-[11px] uppercase tracking-widest"
+                      >
+                        {{ key }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-on-surface font-medium">
+                    <tr 
+                      v-for="(row, rIdx) in message.preview" 
+                      :key="rIdx"
+                      class="hover:bg-surface-container/30 transition-colors border-t border-outline-variant/5"
                     >
-                      {{ key }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr v-for="(row, rIdx) in message.preview" :key="rIdx">
-                    <td
-                      v-for="(val, cIdx) in row"
-                      :key="cIdx"
-                      class="whitespace-nowrap px-4 py-2 text-slate-700"
-                    >
-                      {{ val }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- <div class="border-t border-gray-200 bg-gray-50 px-4 py-2 text-center">
-              <span class="text-xs text-gray-400">Показана часть данных. Скачайте файл для полного доступа.</span>
-            </div> -->
-
-            <div
-              class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-4 py-2"
-            >
-              <div
-                class="flex items-center gap-3 text-xs font-medium text-slate-500"
-              >
-                <span v-if="message.row_count !== undefined">
-                  <i class="fas fa-list-ol mr-1"></i>
-                  {{ formatNumber(message.row_count) }} строк
-                </span>
-                <span v-if="message.file_size !== undefined">
-                  <i class="fas fa-weight-hanging mr-1"></i>
-                  {{ formatBytes(message.file_size) }}
-                </span>
+                      <td 
+                        v-for="(val, cIdx) in row" 
+                        :key="cIdx"
+                        class="px-6 py-4"
+                      >
+                        {{ val }}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-
-              <span class="text-xs text-slate-400">
-                Показаны первые 5 строк
-              </span>
+              
+              <div class="p-4 bg-surface-container-low flex justify-between items-center border-t border-outline-variant/10">
+                <div class="flex gap-4 text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+                  <span v-if="message.row_count !== undefined">
+                    TOTAL: {{ formatNumber(message.row_count) }} ROWS
+                  </span>
+                  <span v-if="message.file_size !== undefined">
+                    SIZE: {{ formatBytes(message.file_size) }}
+                  </span>
+                </div>
+                <span class="text-[10px] font-bold text-primary/50 uppercase tracking-widest">Preview Mode</span>
+              </div>
             </div>
+
           </div>
         </div>
       </div>

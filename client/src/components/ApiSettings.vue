@@ -1,233 +1,189 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
-import { useRouter } from 'vue-router';
-import Sidebar from './chat/Sidebar.vue';
 
-// --- Данные ---
+const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
 const apiKeys = ref([]);
-const userEmail = ref('User');
-const router = useRouter();
-const API_URL = 'http://127.0.0.1:8000';
+const searchQuery = ref('');
 
-// --- Логика ---
 const fetchKeys = async () => {
   try {
     const res = await axios.get(`${API_URL}/api-keys`);
     apiKeys.value = res.data;
   } catch (e) {
-    console.error(e);
+    console.error('Error fetching keys:', e);
   }
 };
 
 const createKey = async () => {
-  const name = prompt("Название ключа (например, 'Prod App'):");
+  const name = prompt("Enter key name (e.g., 'Production App'):");
   if (!name) return;
   try {
     await axios.post(`${API_URL}/api-keys`, null, { params: { name } });
     fetchKeys();
   } catch (e) {
-    alert('Ошибка создания ключа');
+    alert('Failed to create key');
   }
 };
 
 const deleteKey = async (id) => {
-  if (!confirm('Отозвать этот ключ? Приложения с ним перестанут работать.'))
-    return;
+  if (!confirm('Are you sure you want to revoke this key?')) return;
   try {
     await axios.delete(`${API_URL}/api-keys/${id}`);
     fetchKeys();
   } catch (e) {
-    alert('Ошибка удаления');
+    alert('Failed to delete key');
   }
 };
 
 const copyToClipboard = (text) => {
   navigator.clipboard.writeText(text);
-  alert('Скопировано!');
+  alert('Copied to clipboard!');
 };
 
-const parseJwt = (token) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1])).sub;
-  } catch (e) {
-    return 'User';
-  }
-};
+const filteredKeys = computed(() => {
+  const query = searchQuery.value.toLowerCase();
+  return apiKeys.value.filter(k => 
+    (k.name || '').toLowerCase().includes(query) ||
+    (k.key || '').toLowerCase().includes(query)
+  );
+});
 
-const logout = () => {
-  localStorage.removeItem('token');
-  router.push('/login');
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'Oct 12, 2023';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
 };
 
 onMounted(() => {
-  const token = localStorage.getItem('token');
-  if (token) userEmail.value = parseJwt(token);
   fetchKeys();
 });
-
-// Форматирование даты
-const formatDate = (dateStr) => {
-  return new Date(dateStr).toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
-};
 </script>
 
 <template>
-  <div
-    class="flex h-screen overflow-hidden bg-slate-50 font-sans text-slate-800"
-  >
-    <!-- Используем тот же Sidebar, но он сам поймет, что мы на странице API -->
-    <Sidebar :user-email="userEmail" @logout="logout" />
-
-    <!-- MAIN CONTENT -->
-    <main class="relative flex flex-1 flex-col overflow-hidden">
-      <!-- HEADER -->
-      <header
-        class="z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white/70 px-8 backdrop-blur"
-      >
-        <h1 class="text-lg font-semibold text-slate-800">
-          Управление доступом API
-        </h1>
-        <div class="flex items-center gap-3">
-          <span class="text-xs text-slate-500">Статус системы:</span>
-          <span
-            class="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 py-1 text-xs font-medium text-green-600"
-          >
-            <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span> Online
-          </span>
+  <div class="pt-8 px-8 pb-12 w-full overflow-y-auto h-screen custom-scrollbar">
+    <div class="max-w-6xl mx-auto">
+      
+      <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+        <div class="space-y-2">
+          <h1 class="text-4xl font-headline font-extrabold text-on-background tracking-tight">API Management</h1>
+          <p class="text-on-surface-variant max-w-lg leading-relaxed">
+            Securely manage your access keys for the Airelav Data Engine. Use these keys to authenticate your requests via our REST API.
+          </p>
         </div>
-      </header>
+        <button 
+          @click="createKey"
+          class="bg-gradient-to-br from-primary to-primary-container text-on-primary px-8 py-4 rounded-full font-bold flex items-center gap-3 shadow-sm hover:opacity-90 active:scale-95 transition-all w-fit"
+        >
+          <span class="material-symbols-outlined">add</span>
+          Create New Key
+        </button>
+      </div>
 
-      <!-- CONTENT SCROLL AREA -->
-      <div class="flex-1 overflow-y-auto p-8">
-        <div class="mx-auto max-w-5xl space-y-8">
-          <!-- Intro -->
-          <div>
-            <h2 class="mb-2 text-2xl font-bold text-slate-900">
-              Ваши API Ключи
-            </h2>
-            <p class="text-slate-500">
-              Управляйте ключами доступа для интеграции AIrelav в ваши
-              приложения.
-            </p>
+      <!-- Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <div class="bg-surface-container-low p-6 rounded-2xl flex flex-col justify-between min-h-[140px]">
+          <span class="text-on-surface-variant font-medium text-sm">Active Keys</span>
+          <div class="flex items-baseline gap-2">
+            <span class="text-4xl font-headline font-bold text-primary">{{ apiKeys.length.toString().padStart(2, '0') }}</span>
+            <span class="text-on-surface-variant/60 text-xs">/ 10 Limit</span>
+          </div>
+        </div>
+        
+        <div class="bg-surface-container-low p-6 rounded-2xl flex flex-col justify-between min-h-[140px] relative overflow-hidden group">
+          <div class="relative z-10">
+            <span class="text-on-surface-variant font-medium text-sm">System Health</span>
+            <div class="flex items-center gap-2 mt-4">
+              <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span class="font-bold text-on-background">Operational</span>
+            </div>
+          </div>
+          <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
+            <span class="material-symbols-outlined text-8xl">verified_user</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-surface-container-low rounded-lg p-1">
+        <div class="bg-surface-container-lowest rounded-[calc(1rem-4px)] overflow-hidden">
+          
+          <div class="px-8 py-6 border-b border-surface-container-low flex items-center justify-between">
+            <h3 class="font-headline font-bold text-xl">Existing Keys</h3>
+            <div class="flex gap-4">
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">search</span>
+                <input 
+                  v-model="searchQuery"
+                  class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 w-64 outline-none" 
+                  placeholder="Search keys..." 
+                  type="text"
+                />
+              </div>
+            </div>
           </div>
 
-          <!-- Keys Card -->
-          <div
-            class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-6 py-4"
-            >
-              <div>
-                <h3
-                  class="text-sm font-bold uppercase tracking-wide text-slate-800"
-                >
-                  Активные ключи
-                </h3>
-              </div>
-              <button
-                class="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90 hover:shadow"
-                @click="createKey"
-              >
-                <i class="fas fa-plus"></i> Создать ключ
-              </button>
+          <div class="divide-y divide-surface-container-low">
+            <div v-if="filteredKeys.length === 0" class="px-8 py-12 text-center text-on-surface-variant/40">
+              <p>No API keys found.</p>
             </div>
 
-            <div class="divide-y divide-slate-100">
-              <!-- Empty State -->
-              <div
-                v-if="apiKeys.length === 0"
-                class="p-8 text-center text-slate-400"
-              >
-                У вас пока нет активных API ключей.
+            <div 
+              v-for="key in filteredKeys" 
+              :key="key.id"
+              class="group px-8 py-6 flex flex-col lg:flex-row lg:items-center justify-between hover:bg-surface-container-low transition-colors duration-300 gap-6"
+            >
+              <div class="flex items-center gap-6">
+                <div class="w-12 h-12 rounded-2xl bg-primary-fixed flex items-center justify-center text-primary shrink-0">
+                  <span class="material-symbols-outlined">key</span>
+                </div>
+                <div class="space-y-1">
+                  <h4 class="font-bold text-on-background">{{ key.name }}</h4>
+                  <div class="flex items-center gap-3">
+                    <code class="text-xs bg-surface-container-low px-2 py-0.5 rounded-full text-on-surface-variant">
+                      {{ key.key.substring(0, 8) }}••••••••{{ key.key.substring(key.key.length - 4) }}
+                    </code>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                    <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Active</span>
+                  </div>
+                </div>
               </div>
 
-              <!-- Key Item -->
-              <div
-                v-for="key in apiKeys"
-                :key="key.id"
-                class="flex flex-col justify-between p-6 transition hover:bg-slate-50 sm:flex-row sm:items-center"
-              >
-                <div class="space-y-1">
-                  <div class="flex items-center gap-3">
-                    <span class="font-semibold text-slate-900">{{
-                      key.name
-                    }}</span>
-                    <span
-                      class="rounded bg-green-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700"
-                      >Active</span
-                    >
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <code
-                      class="rounded border border-slate-200 bg-slate-100 px-2 py-1 font-mono text-xs text-slate-500"
-                      >{{ key.key }}</code
-                    >
-                    <button
-                      class="text-slate-400 transition hover:text-blue-500"
-                      title="Скопировать"
-                      @click="copyToClipboard(key.key)"
-                    >
-                      <i class="far fa-copy"></i>
-                    </button>
-                  </div>
-                  <p class="pt-1 text-xs text-slate-400">
-                    Создан {{ formatDate(key.created_at) }}
-                  </p>
+              <div class="flex items-center justify-between lg:justify-end gap-12">
+                <div class="text-right">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Created</p>
+                  <p class="text-sm font-medium text-on-surface-variant">{{ formatDate(key.created_at) }}</p>
                 </div>
-                <div class="mt-4 flex items-center gap-3 sm:mt-0">
-                  <button
-                    class="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                    @click="deleteKey(key.id)"
+                
+                <div class="flex items-center gap-2">
+                  <button 
+                    @click="copyToClipboard(key.key)"
+                    class="p-2 rounded-full hover:bg-surface-container-highest text-on-surface-variant transition-colors flex items-center gap-2 group-hover:text-primary"
                   >
-                    <i class="fas fa-trash-alt"></i>
+                    <span class="material-symbols-outlined text-[20px]">content_copy</span>
+                    <span class="text-xs font-semibold">Copy</span>
+                  </button>
+                  <button 
+                    @click="deleteKey(key.id)"
+                    class="p-2 rounded-full hover:bg-error-container/20 text-error transition-colors flex items-center gap-2"
+                  >
+                    <span class="material-symbols-outlined text-[20px]">cancel</span>
+                    <span class="text-xs font-semibold">Revoke</span>
                   </button>
                 </div>
               </div>
             </div>
           </div>
-
-          <!-- Example Usage -->
-          <div
-            class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-sm"
-          >
-            <div
-              class="flex items-center justify-between border-b border-slate-800 bg-slate-950/50 px-4 py-3"
-            >
-              <div class="flex gap-2">
-                <div class="h-2.5 w-2.5 rounded-full bg-red-500/20"></div>
-                <div class="h-2.5 w-2.5 rounded-full bg-green-500/20"></div>
-              </div>
-              <span class="font-mono text-xs text-slate-500">example.sh</span>
-            </div>
-            <div class="overflow-x-auto p-6">
-              <code class="font-mono text-sm leading-relaxed text-slate-300">
-                <span class="text-purple-400">curl</span> -X POST
-                {{ API_URL }}/generate \<br />
-                &nbsp;&nbsp;-H
-                <span class="text-yellow-200"
-                  >"Authorization: Bearer sk-relav..."</span
-                >
-                \<br />
-                &nbsp;&nbsp;-H
-                <span class="text-yellow-200"
-                  >"Content-Type: application/json"</span
-                >
-                \<br />
-                &nbsp;&nbsp;-d
-                <span class="text-green-300"
-                  >'{ "prompt": "List of 50 users" }'</span
-                >
-              </code>
-            </div>
-          </div>
         </div>
       </div>
-    </main>
+    </div>
   </div>
 </template>
+
+<style scoped>
+.font-headline { font-family: 'Manrope', sans-serif; }
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e2db; border-radius: 10px; }
+</style>
