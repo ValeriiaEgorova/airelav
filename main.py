@@ -206,7 +206,7 @@ async def start_generation(
 
     task = GenerationTask(
         prompt=prompt,
-        file_format="pkl",
+        file_format="csv",
         user_id=current_user.id,
         conversation_id=conversation_id,
         ai_model=model,
@@ -285,7 +285,6 @@ async def download_file(
     current_user: User = Depends(get_current_user_or_api_key),
     session: Session = Depends(get_session),
 ) -> StreamingResponse:
-    """Скачивание файла с конвертацией (Только для владельца)"""
     task = session.get(GenerationTask, task_id)
 
     if not task or not task.file_path or not os.path.exists(task.file_path):
@@ -295,7 +294,8 @@ async def download_file(
         raise HTTPException(status_code=403, detail="Нет доступа к этому файлу")
 
     try:
-        df = pd.read_pickle(task.file_path)
+        df = pd.read_csv(task.file_path)
+        
         stream = io.BytesIO()
 
         if format == "csv":
@@ -307,10 +307,8 @@ async def download_file(
             media_type = "application/json"
             filename = f"dataset_{task_id}.json"
         elif format == "xlsx":
-            df.to_excel(stream, index=False)
-            media_type = (
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            df.to_excel(stream, index=False, engine='openpyxl')
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             filename = f"dataset_{task_id}.xlsx"
         else:
             raise HTTPException(
@@ -325,9 +323,10 @@ async def download_file(
         )
 
     except Exception as e:
+        print(f"Ошибка при конвертации для скачивания: {e}")
         raise HTTPException(
-            status_code=500, detail=f"Ошибка конвертации: {str(e)}"
-        ) from e
+            status_code=500, detail=f"Ошибка подготовки файла: {str(e)}"
+        )
 
 
 def run_generation_wrapper(

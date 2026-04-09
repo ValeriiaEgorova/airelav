@@ -6,7 +6,7 @@ import { useRouter } from 'vue-router';
 const router = useRouter();
 const email = ref('');
 const password = ref('');
-const isRegistering = ref(false);
+const isRegistering = ref(false); // Состояние: Вход или Регистрация
 const showPassword = ref(false);
 
 const API_URL = 'http://127.0.0.1:8000';
@@ -38,214 +38,213 @@ const handleSubmit = async () => {
 </script>
 
 <template>
-  <div class="flex h-screen w-full overflow-hidden bg-white font-sans">
-    <div
-      class="relative hidden flex-col justify-between overflow-hidden bg-slate-900 text-white lg:flex lg:w-1/2"
-    >
-      <div
-        class="absolute inset-0 z-0 bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900"
-      ></div>
-      <div class="pattern-grid absolute inset-0 z-0 opacity-20"></div>
+  <div class="bg-background text-on-surface font-['Outfit'] min-h-screen flex flex-col items-center justify-center p-6 mesh-bg relative overflow-x-hidden">
+    
+    <div class="data-line-grid"></div>
+    <div class="noise"></div>
+    <div class="fixed inset-0 data-dot-grid pointer-events-none"></div>
 
-      <div
-        class="absolute left-1/4 top-1/4 h-96 w-96 animate-pulse rounded-full bg-blue-500 opacity-20 mix-blend-multiply blur-3xl filter"
-      ></div>
-      <div
-        class="absolute bottom-1/4 right-1/4 h-96 w-96 animate-pulse rounded-full bg-purple-500 opacity-20 mix-blend-multiply blur-3xl filter"
-        style="animation-delay: 2s"
-      ></div>
-
-      <div class="relative z-10 flex h-full flex-col justify-between p-12">
-        <div class="flex items-center space-x-3">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg"
-          >
-            <i class="fas fa-cube text-lg text-white"></i>
-          </div>
-          <span class="text-3xl font-bold tracking-tight">AIrelav</span>
-        </div>
-
-        <div class="max-w-md">
-          <h2 class="mb-6 text-4xl font-bold leading-tight">
-            Генерируйте данные<br />
-            силой мысли.
-          </h2>
-          <p class="text-lg leading-relaxed text-slate-400">
-            Превратите текстовые описания в структурированные датасеты JSON, CSV
-            или Excel за считанные секунды. Идеально для тестирования и ML.
-          </p>
-        </div>
-
-        <div class="flex items-center space-x-4">
-          <div class="flex -space-x-2">
-            <img
-              class="h-8 w-8 rounded-full border-2 border-slate-900"
-              src="https://i.pravatar.cc/100?img=33"
-              alt="User"
-            />
-            <img
-              class="h-8 w-8 rounded-full border-2 border-slate-900"
-              src="https://i.pravatar.cc/100?img=47"
-              alt="User"
-            />
-            <img
-              class="h-8 w-8 rounded-full border-2 border-slate-900"
-              src="https://i.pravatar.cc/100?img=12"
-              alt="User"
-            />
-          </div>
-          <p class="text-sm font-medium text-slate-500">
-            Присоединяйтесь к разработчикам
-          </p>
-        </div>
-      </div>
+    <div class="fixed inset-0 -z-10 pointer-events-none">
+        <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-primary-light/30 rounded-full blur-[120px] animate-blob"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-primary/20 rounded-full blur-[120px] animate-blob" style="animation-delay: 4s;"></div>
     </div>
 
-    <div
-      class="relative flex w-full items-center justify-center bg-white p-8 lg:w-1/2"
-    >
-      <div class="absolute left-6 top-6 flex items-center space-x-2 lg:hidden">
-        <div
-          class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600"
-        >
-          <i class="fas fa-cube text-xs text-white"></i>
-        </div>
-        <span class="font-bold text-slate-900">AIrelav</span>
-      </div>
-
-      <div class="fade-in-up w-full max-w-md">
-        <div class="mb-10">
-          <h1 class="mb-2 text-3xl font-bold text-slate-900">
-            {{ isRegistering ? 'Создать аккаунт' : 'С возвращением!' }}
-          </h1>
-          <p class="text-slate-500">
-            {{
-              isRegistering
-                ? 'Заполните данные для регистрации.'
-                : 'Введите данные для доступа.'
-            }}
-          </p>
+    <div class="fixed inset-0 pointer-events-none">
+        <div class="absolute top-[15%] left-[20%] animate-float-slow opacity-20" style="animation-delay: -6s;">
+            <div class="flex flex-col -space-y-4 rotate-12">
+                <div class="w-16 h-10 bg-primary/20 border border-primary/30 rounded-lg transform skew-x-12"></div>
+                <div class="w-16 h-10 bg-primary/10 border border-primary/30 rounded-lg transform skew-x-12"></div>
+                <div class="w-16 h-10 bg-white/40 border border-primary/30 rounded-lg transform skew-x-12 backdrop-blur-sm"></div>
+            </div>
         </div>
 
-        <div class="mb-6 grid grid-cols-2 gap-4">
-          <button
-            class="flex items-center justify-center space-x-2 rounded-xl border border-slate-200 py-2.5 transition-colors hover:bg-slate-50"
-          >
-            <i class="fab fa-google text-red-500"></i>
-            <span class="text-sm font-medium text-slate-700">Google</span>
-          </button>
-          <button
-            class="flex items-center justify-center space-x-2 rounded-xl border border-slate-200 py-2.5 transition-colors hover:bg-slate-50"
-          >
-            <i class="fab fa-github text-slate-900"></i>
-            <span class="text-sm font-medium text-slate-700">GitHub</span>
-          </button>
+        <div class="absolute bottom-[40%] left-[5%] animate-float-slow opacity-40" style="animation-delay: -3s;">
+            <div class="relative w-20 h-20 border border-primary/30 rounded-full flex items-center justify-center">
+                <div class="w-10 h-10 border border-primary-light/40 rounded-lg rotate-45 animate-spin-slow" style="animation-duration: 8s;"></div>
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-primary-light rounded-full"></div>
+            </div>
         </div>
 
-        <div class="relative mb-6 flex items-center py-2">
-          <div class="flex-grow border-t border-slate-200"></div>
-          <span
-            class="mx-4 flex-shrink-0 text-xs font-medium uppercase text-slate-400"
-            >Или через email</span
-          >
-          <div class="flex-grow border-t border-slate-200"></div>
+        <div class="absolute bottom-[0%] left-[25%] animate-float-reverse opacity-100">
+            <div class="flex flex-col items-center gap-4">
+                <div class="w-3 h-3 rounded-full bg-primary-light shadow-[0_0_15px_rgba(255,146,56,0.6)]"></div>
+                <div class="w-px h-20 bg-gradient-to-b from-primary-light to-transparent"></div>
+            </div>
         </div>
 
-        <form class="space-y-5" @submit.prevent="handleSubmit">
-          <div>
-            <label class="mb-1.5 block text-sm font-medium text-slate-700"
-              >Email адрес</label
-            >
-            <input
-              v-model="email"
-              type="email"
-              required
-              placeholder="name@company.com"
-              class="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+        <div class="absolute top-[20%] right-[12%] animate-float-fast opacity-60">
+            <div class="data-chip p-3 rotate-6">
+                <div class="flex gap-1.5">
+                    <div class="w-2 h-2 rounded-full bg-primary/20"></div>
+                    <div class="w-12 h-2 rounded-full bg-primary/10"></div>
+                </div>
+                <div class="w-20 h-2 bg-primary/5 rounded-full mt-2"></div>
+            </div>
+        </div>
 
-          <div>
-            <div class="mb-1.5 flex items-center justify-between">
-              <label class="block text-sm font-medium text-slate-700"
-                >Пароль</label
-              >
-              <a
-                v-if="!isRegistering"
+        <div class="absolute bottom-[10%] right-[10%] animate-float-slow">
+            <div class="w-32 h-32 rounded-3xl border-4 border-dashed border-primary/10 flex items-center justify-center rotate-12">
+                <span class="material-symbols-outlined text-primary/10 text-6xl">database</span>
+            </div>
+        </div>
+    </div>
+
+    <main class="relative z-50 w-full max-w-[460px]">
+        <div class="glass-card rounded-[3rem] p-10 md:p-12 relative overflow-x-hidden group">
+            <div class="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[2px] bg-gradient-to-r from-transparent via-primary-light to-transparent shadow-[0_0_15px_rgba(255,146,56,0.5)]"></div>
+            
+            <div class="flex flex-col items-center mb-10 text-center">
+                <div class="relative group cursor-pointer mb-4">
+                    <div class="w-16 h-16 bg-gradient-to-tr from-primary-dark to-primary-light rounded-2xl flex items-center justify-center rotate-3 shadow-xl group-hover:rotate-6 transition-transform">
+                        <span class="material-symbols-outlined text-white text-4xl">hub</span>
+                    </div>
+
+                    <div class="absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-md">
+                        <div class="w-2.5 h-2.5 bg-primary-light rounded-full animate-pulse"></div>
+                    </div>
+                </div>
+
+                <h1 class="text-4xl font-extrabold tracking-tight text-on-surface">Airelav</h1>
+                <p class="text-xs font-bold text-primary-light uppercase tracking-[0.3em] mt-2 opacity-80">
+                  Dataset Engine
+                </p>
+            </div>
+
+            <form class="space-y-6" @submit.prevent="handleSubmit">
+                <div class="space-y-2">
+                    <label class="text-[11px] font-bold uppercase tracking-widest text-primary/70 ml-4 block">Email Address</label>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary/40">mail</span>
+                        <input 
+                            v-model="email"
+                            required
+                            type="email"
+                            placeholder="address@mail.ru" 
+                            class="w-full h-14 pl-12 pr-6 bg-white/50 border border-primary/10 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-light/10 focus:border-primary-light transition-all outline-none" 
+                        />
+                    </div>
+                </div>
+                
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center px-4">
+                        <label class="text-[11px] font-bold uppercase tracking-widest text-primary/70">Password</label>
+                        <a v-if="!isRegistering" class="text-[11px] font-extrabold text-primary-light hover:underline" href="#">Forgot password?</a>
+                    </div>
+                    <div class="relative">
+                        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary/40">key</span>
+                        <input 
+                            v-model="password"
+                            required
+                            :type="showPassword ? 'text' : 'password'"
+                            placeholder="••••••••" 
+                            class="w-full h-14 pl-12 pr-12 bg-white/50 border border-primary/10 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-light/10 focus:border-primary-light transition-all outline-none" 
+                        />
+                        <button 
+                            type="button" 
+                            @click="showPassword = !showPassword"
+                            class="absolute right-4 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary transition-colors"
+                        >
+                            <span class="material-symbols-outlined text-xl">
+                                {{ showPassword ? 'visibility_off' : 'visibility' }}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                <button class="w-full h-14 rounded-2xl bg-gradient-to-r from-primary-dark via-primary to-primary-light text-white font-bold text-sm uppercase tracking-[0.2em] shadow-xl shadow-primary/30 hover:shadow-primary/50 hover:brightness-110 active:scale-[0.98] transition-all duration-300 mt-4 relative overflow-x-hidden group/btn" type="submit">
+                    <span class="relative z-10">{{ isRegistering ? 'SIGN UP' : 'SIGN IN' }}</span>
+                    <div class="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-700 skew-x-[-20deg]"></div>
+                </button>
+            </form>
+
+            <div class="mt-10">
+                <div class="relative flex items-center gap-4 mb-6">
+                    <div class="h-px flex-1 bg-gradient-to-r from-transparent to-primary/10"></div>
+                    <span class="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/30">
+                        {{ isRegistering ? 'OR REGISTER WITH' : 'OR LOGIN WITH' }}
+                    </span>
+                    <div class="h-px flex-1 bg-gradient-to-l from-transparent to-primary/10"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <button class="flex items-center justify-center gap-2 h-12 rounded-xl bg-white/50 border border-primary/5 hover:bg-white hover:border-primary/20 transition-all shadow-sm group">
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-primary/60">Google</span>
+                    </button>
+                    <button class="flex items-center justify-center gap-2 h-12 rounded-xl bg-white/50 border border-primary/5 hover:bg-white hover:border-primary/20 transition-all shadow-sm group">
+                        <img src="https://www.svgrepo.com/show/475654/github-color.svg" class="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="">
+                        <span class="text-[10px] font-bold uppercase tracking-wider text-primary/60">GitHub</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center mt-8 text-primary/60 font-medium">
+            {{ isRegistering ? 'Already have an account?' : "Don't have an account?" }}
+            <a 
                 href="#"
-                class="text-sm font-medium text-blue-600 hover:text-blue-500"
-                >Забыли пароль?</a
-              >
-            </div>
-            <div class="relative">
-              <input
-                v-model="password"
-                :type="showPassword ? 'text' : 'password'"
-                required
-                placeholder="••••••••"
-                class="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 placeholder-slate-400 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                type="button"
-                class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                @click="showPassword = !showPassword"
-              >
-                <i
-                  :class="showPassword ? 'far fa-eye-slash' : 'far fa-eye'"
-                ></i>
-              </button>
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            class="w-full transform rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 py-3.5 font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98]"
-          >
-            {{ isRegistering ? 'Зарегистрироваться' : 'Войти в аккаунт' }}
-          </button>
-        </form>
-
-        <p class="mt-8 text-center text-sm text-slate-600">
-          {{ isRegistering ? 'Уже есть аккаунт?' : 'Нет аккаунта?' }}
-          <button
-            class="ml-1 font-semibold text-blue-600 transition-colors hover:text-blue-500"
-            @click="isRegistering = !isRegistering"
-          >
-            {{ isRegistering ? 'Войти' : 'Создать бесплатно' }}
-          </button>
+                @click.prevent="isRegistering = !isRegistering"
+                class="text-primary-light font-extrabold hover:text-primary transition-colors border-b-2 border-primary-light/20 hover:border-primary-light ml-1" 
+            >
+                {{ isRegistering ? 'Sign In' : 'Sign Up' }}
+            </a>
         </p>
-      </div>
+    </main>
 
-      <div class="absolute bottom-6 w-full text-center">
-        <div class="space-x-4 text-xs text-slate-400">
-          <a href="#" class="hover:text-slate-600">Privacy Policy</a>
-          <span>&bull;</span>
-          <a href="#" class="hover:text-slate-600">Terms of Service</a>
+    <div class="mt-16 w-full max-w-[1000px] grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10 mb-10 hidden md:grid">
+        <div class="bg-white/30 backdrop-blur-md p-6 rounded-3xl border border-white/50 hover:bg-white/50 transition-all cursor-default">
+            <div class="text-primary mb-3"><span class="material-symbols-outlined text-[22px]">auto_awesome</span></div>
+            <h4 class="font-bold text-sm text-on-surface">Intelligent Design</h4>
+            <p class="text-xs text-primary/60 mt-1">Leverage generative tools to accelerate your workflow.</p>
         </div>
-      </div>
+        <div class="bg-white/30 backdrop-blur-md p-6 rounded-3xl border border-white/50 hover:bg-white/50 transition-all cursor-default">
+            <div class="text-primary mb-3"><span class="material-symbols-outlined text-[22px]">security</span></div>
+            <h4 class="font-bold text-sm text-on-surface">Enterprise Grade</h4>
+            <p class="text-xs text-primary/60 mt-1">Built with the highest security standards for data privacy.</p>
+        </div>
+        <div class="bg-white/30 backdrop-blur-md p-6 rounded-3xl border border-white/50 hover:bg-white/50 transition-all cursor-default">
+            <div class="text-primary mb-3"><span class="material-symbols-outlined text-[22px]">cloud_done</span></div>
+            <h4 class="font-bold text-sm text-on-surface">Instant Sync</h4>
+            <p class="text-xs text-primary/60 mt-1">Your projects are synchronized across all devices.</p>
+        </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.fade-in-up {
-  animation: fadeInUp 0.6s ease-out forwards;
-  opacity: 0;
-  transform: translateY(20px);
+.glass-card { 
+    background: rgba(255, 255, 255, 0.75); 
+    backdrop-filter: blur(20px) saturate(160%); 
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    box-shadow: 0 30px 60px -12px rgba(148, 74, 0, 0.2);
 }
-
-@keyframes fadeInUp {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.mesh-bg {
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(255, 146, 56, 0.2) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(148, 74, 0, 0.1) 0px, transparent 50%);
 }
-
-.pattern-grid {
-  background-image: radial-gradient(
-    rgba(255, 255, 255, 0.1) 1px,
-    transparent 1px
-  );
-  background-size: 24px 24px;
+.data-dot-grid {
+    background-image: radial-gradient(rgba(148, 74, 0, 0.1) 1px, transparent 1px);
+    background-size: 40px 40px;
+}
+.noise {
+    position: absolute;
+    inset: 0; z-index: -1; opacity: 0.04; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+.data-chip {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(148, 74, 0, 0.1);
+    border-radius: 12px;
+}
+.data-line-grid {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image: 
+        linear-gradient(to right, rgba(148, 74, 0, 0.05) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(148, 74, 0, 0.05) 1px, transparent 1px);
+    background-size: 70px 70px;
 }
 </style>
