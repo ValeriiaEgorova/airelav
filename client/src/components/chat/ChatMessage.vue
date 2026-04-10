@@ -4,6 +4,9 @@ const props = defineProps({
   message: { type: Object, required: true },
 });
 
+import { useToast } from "vue-toastification";
+const toast = useToast();
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 const downloadFile = async (taskId, format) => {
@@ -26,7 +29,7 @@ const downloadFile = async (taskId, format) => {
     window.URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Ошибка скачивания:', error);
-    alert('Не удалось скачать файл. Возможно, сессия истекла.');
+    toast.error('Не удалось скачать файл. Возможно, сессия истекла.');
   }
 };
 

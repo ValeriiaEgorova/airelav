@@ -3,6 +3,9 @@ import { ref } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 
+import { useToast } from "vue-toastification";
+const toast = useToast();
+
 const router = useRouter();
 const email = ref('');
 const password = ref('');
@@ -21,7 +24,7 @@ const handleSubmit = async () => {
       await axios.post(`${API_URL}/auth/register`, null, {
         params: { email: email.value, password: password.value },
       });
-      alert('Аккаунт создан! Входим...');
+      toast.success('Аккаунт создан! Входим...');
     }
 
     const response = await axios.post(`${API_URL}/token`, formData);
@@ -32,7 +35,7 @@ const handleSubmit = async () => {
   } catch (error) {
     console.error(error);
     const msg = error.response?.data?.detail || 'Ошибка авторизации';
-    alert(msg);
+    toast.error(msg);
   }
 };
 </script>
@@ -174,7 +177,7 @@ const handleSubmit = async () => {
                     <button class="flex items-center justify-center gap-2 h-12 rounded-xl bg-white/50 border border-primary/5 hover:bg-white hover:border-primary/20 transition-all shadow-sm group">
                         <img src="https://www.svgrepo.com/show/475654/github-color.svg" class="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="">
                         <span class="text-[10px] font-bold uppercase tracking-wider text-primary/60">GitHub</span>
-                    </button>
+                    </button>   
                 </div>
             </div>
         </div>

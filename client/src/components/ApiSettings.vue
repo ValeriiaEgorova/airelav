@@ -2,6 +2,9 @@
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
 
+import { useToast } from "vue-toastification";
+const toast = useToast();
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 const apiKeys = ref([]);
@@ -23,7 +26,7 @@ const createKey = async () => {
     await axios.post(`${API_URL}/api-keys`, null, { params: { name } });
     fetchKeys();
   } catch (e) {
-    alert('Failed to create key');
+    toast.error('Failed to create key');
   }
 };
 
@@ -33,13 +36,13 @@ const deleteKey = async (id) => {
     await axios.delete(`${API_URL}/api-keys/${id}`);
     fetchKeys();
   } catch (e) {
-    alert('Failed to delete key');
+    toast.error('Failed to delete key');
   }
 };
 
 const copyToClipboard = (text) => {
   navigator.clipboard.writeText(text);
-  alert('Copied to clipboard!');
+  toast.success('Copied to clipboard!');
 };
 
 const filteredKeys = computed(() => {
