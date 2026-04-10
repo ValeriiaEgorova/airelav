@@ -37,7 +37,7 @@ defineEmits(['update:model']);
       </div>
 
       <div class="hidden md:flex gap-6 items-center h-full">
-        <a href="https://github.com" target="_blank" rel="noopener noreferrer" class="text-[#944a00] font-bold font-headline tracking-tight hover:opacity-80 transition-opacity">
+        <a href="https://github.com/ValeriiaEgorova/airelav" target="_blank" rel="noopener noreferrer" class="text-[#944a00] font-bold font-headline tracking-tight hover:opacity-80 transition-opacity">
           GitHub
         </a>
       </div>
