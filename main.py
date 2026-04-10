@@ -273,6 +273,11 @@ def create_api_key(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    if len(user.api_keys) >= 10:
+        raise HTTPException(
+            status_code=400, 
+            detail="Вы достигли лимита в 10 активных API ключей. Удалите старые, чтобы создать новый."
+        )
     random_part = secrets.token_urlsafe(16)
     new_key_str = f"sk-relav-{random_part}"
 
