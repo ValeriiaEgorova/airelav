@@ -3,7 +3,8 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
-
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import pandas as pd
 import redis.asyncio as redis
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
@@ -27,6 +28,8 @@ from database import create_db_and_tables, engine, get_session
 from models import APIKey, Conversation, GenerateRequest, GenerationTask, User, EnhancePromptRequest
 
 app = FastAPI(title="AIrelav API")
+
+scheduler = BackgroundScheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +63,14 @@ async def on_startup() -> None:
         "redis://localhost:6379", encoding="utf-8", decode_responses=True
     )
     await FastAPILimiter.init(redis_connection)
+    scheduler.add_job(
+        cleanup_expired_files,
+        trigger=IntervalTrigger(hours=12), 
+        id="gc_job",
+        name="Cleanup expired generated files",
+        replace_existing=True,
+    )
+    scheduler.start()
 
 
 @app.post("/auth/register")
@@ -96,19 +107,18 @@ def login(
 
 @app.get("/conversations")
 async def get_conversations(
-    offset: int = 0,
-    limit: int = 20,
+    offset: int = 0, limit: int = 20,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Any:
     return session.exec(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
+        .where(Conversation.is_deleted == False)
         .order_by(desc(Conversation.created_at))
         .offset(offset)
         .limit(limit)
     ).all()
-
 
 @app.get("/conversations/{conversation_id}")
 async def get_conversation_history(
@@ -117,12 +127,13 @@ async def get_conversation_history(
     session: Session = Depends(get_session),
 ) -> Any:
     chat = session.get(Conversation, conversation_id)
-    if not chat or chat.user_id != current_user.id:
+    if not chat or chat.user_id != current_user.id or chat.is_deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     tasks = session.exec(
         select(GenerationTask)
         .where(GenerationTask.conversation_id == conversation_id)
+        .where(GenerationTask.is_deleted == False)
         .order_by(desc(GenerationTask.created_at))
     ).all()
     return tasks
@@ -135,22 +146,28 @@ async def delete_conversation(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     chat = session.get(Conversation, conversation_id)
-    if not chat or chat.user_id != current_user.id:
+    if not chat or chat.user_id != current_user.id or chat.is_deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
+
+    chat.is_deleted = True
+    session.add(chat)
 
     tasks = session.exec(
         select(GenerationTask).where(GenerationTask.conversation_id == conversation_id)
     ).all()
+    
     for task in tasks:
+        task.is_deleted = True
+        session.add(task)
+        
         if task.file_path and os.path.exists(task.file_path):
             try:
                 os.remove(task.file_path)
             except OSError:
                 pass
 
-    session.delete(chat)
     session.commit()
-    return {"message": "Conversation deleted"}
+    return {"message": "Conversation deleted successfully"}
 
 
 @app.post("/generate", dependencies=[Depends(RateLimiter(times=20, seconds=60))])
@@ -216,11 +233,15 @@ async def start_generation(
         if last_task:
             previous_code = last_task.generated_code
 
+    expiration_days = 1 if current_user.tier == "free" else 7
+    expires_time = datetime.utcnow() + timedelta(days=expiration_days)
+
     task = GenerationTask(
         prompt=prompt,
         file_format="csv",
         user_id=current_user.id,
         conversation_id=conversation_id,
+        expires_at=expires_time,
         ai_model=model,
     )
     session.add(task)
@@ -461,3 +482,35 @@ async def enhance_prompt(
     except Exception as e:
         print(f"Enhance error: {e}")
         return {"enhanced_prompt": request.prompt}
+
+
+def cleanup_expired_files():
+    """Фоновая задача: удаляет физические файлы, чей срок жизни истек."""
+    print(f"[{datetime.utcnow()}] Запуск Garbage Collector...")
+    with Session(engine) as session:
+        now = datetime.utcnow()
+        expired_tasks = session.exec(
+            select(GenerationTask)
+            .where(GenerationTask.expires_at < now)
+            .where(GenerationTask.file_path != None)
+        ).all()
+
+        count = 0
+        for task in expired_tasks:
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                    task.file_path = None
+                    task.error_log = "Файл удален по истечении срока хранения (TTL)."
+                    session.add(task)
+                    count += 1
+                except OSError as e:
+                    print(f"GC Error: Не удалось удалить файл {task.file_path}: {e}")
+        
+        session.commit()
+        if count > 0:
+            print(f"Garbage Collector: Удалено {count} просроченных файлов.")
+
+@app.on_event("shutdown")
+def shutdown_event():
+    scheduler.shutdown()

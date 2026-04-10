@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, Column
@@ -33,6 +33,8 @@ class Conversation(SQLModel, table=True):
     title: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
+    is_deleted: bool = Field(default=False)
+
     user_id: int | None = Field(default=None, foreign_key="user.id")
     user: User | None = Relationship(back_populates="conversations")
 
@@ -61,6 +63,9 @@ class GenerationTask(SQLModel, table=True):
     ai_model: str = Field(default="gemini-2.5-flash")
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+
+    expires_at: Optional[datetime] = None
+    is_deleted: bool = Field(default=False)
 
     conversation_id: int | None = Field(default=None, foreign_key="conversation.id")
     conversation: Conversation | None = Relationship(back_populates="tasks")
