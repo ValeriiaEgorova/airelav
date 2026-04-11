@@ -23,7 +23,6 @@ export const chatStore = reactive({
   },
 
   async deleteChat(id) {
-    if (!confirm('Вы уверены?')) return;
     try {
       await axios.delete(`${API_URL}/conversations/${id}`); 
       this.history = this.history.filter(item => item.id !== id);
@@ -32,7 +31,6 @@ export const chatStore = reactive({
       }
     } catch (e) { 
       console.error('Ошибка удаления:', e);
-      alert('Не удалось удалить чат. Проверьте консоль.'); 
     }
   }
 });

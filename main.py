@@ -139,7 +139,7 @@ async def get_conversation_history(
     return tasks
 
 
-@app.delete("/history/{conversation_id}")
+@app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: int,
     current_user: User = Depends(get_current_user),
