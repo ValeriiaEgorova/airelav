@@ -1,6 +1,7 @@
 import io
 import os
 import secrets
+from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from typing import Any
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -15,6 +16,17 @@ from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
 from sqlalchemy import func
 from sqlmodel import Session, desc, select
+from fastapi_sso.sso.github import GithubSSO
+from fastapi import Request
+from fastapi.responses import RedirectResponse
+
+load_dotenv()
+
+github_sso = GithubSSO(
+    client_id=os.getenv("GITHUB_CLIENT_ID"),
+    client_secret=os.getenv("GITHUB_CLIENT_SECRET"),
+    redirect_uri="http://localhost:8000/auth/github/callback"
+)
 
 from auth import (
     create_access_token,
@@ -545,6 +557,36 @@ async def get_user_profile(
         }
     }
 
+
+@app.get("/auth/github/callback")
+async def github_callback(request: Request, session: Session = Depends(get_session)):
+    async with github_sso: # <--- И ТУТ ASYNC
+        user_data = await github_sso.verify_and_process(request)
+    
+    if not user_data:
+        raise HTTPException(status_code=400, detail="Failed to get user data from GitHub")
+
+    user = session.exec(select(User).where(User.email == user_data.email)).first()
+
+    if not user:
+        user = User(
+            email=user_data.email, 
+            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+            tier="free"
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    access_token = create_access_token(data={"sub": user.email})
+    frontend_url = "http://localhost:5173/auth-success"
+    return RedirectResponse(url=f"{frontend_url}?token={access_token}")
+
+@app.get("/auth/github/login")
+async def github_login():
+    async with github_sso: # <--- ТУТ ASYNC
+        return await github_sso.get_login_redirect()
+    
 @app.on_event("shutdown")
 def shutdown_event():
     scheduler.shutdown()
