@@ -1,24 +1,53 @@
 <script setup>
-import { ref, onMounted, nextTick, watch } from 'vue';
+import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import axios from 'axios';
+import { useToast } from "vue-toastification";
 import { chatStore } from '../chatStore';
 import ChatMessage from './chat/ChatMessage.vue';
+import BaseModal from './common/BaseModal.vue'; // Убедитесь, что путь верный
 
+const toast = useToast();
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
+// --- СОСТОЯНИЕ (STATE) ---
 const prompt = ref('');
 const messages = ref([]);
 const isGenerating = ref(false);
+const isEnhancing = ref(false);
 const chatContainer = ref(null);
 const pollingInterval = ref(null);
-const selectedModel = ref('gemini-2.5-flash');
 
-const scrollToBottom = async () => {
+// --- ЛОГИКА ЛИМИТА СИМВОЛОВ ---
+const MAX_CHARS = 1000;
+const charCount = computed(() => prompt.value.length);
+const isNearLimit = computed(() => charCount.value > MAX_CHARS * 0.9);
+const isOverLimit = computed(() => charCount.value >= MAX_CHARS);
+
+// --- МОДАЛКА УДАЛЕНИЯ ---
+const showDeleteModal = ref(false);
+const chatToDelete = ref(null);
+
+const scrollToBottom = async (force = false) => {
   await nextTick();
   if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainer.value;
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+    // Скроллим только если пользователь почти внизу (запас 150px) или если это force-вызов
+    if (force || distanceToBottom < 150) {
+      chatContainer.value.scrollTo({
+        top: scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }
 };
+
+const formatDate = (dateStr) => {
+  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+// --- ЛОГИКА ЧАТА ---
 
 const loadFullChat = async (id) => {
   if (!id) {
@@ -51,8 +80,135 @@ const loadFullChat = async (id) => {
     scrollToBottom();
   } catch (error) {
     console.error('Ошибка загрузки чата:', error);
+    toast.error("Failed to load chat history");
   }
 };
+
+const enhancePrompt = async () => {
+  const text = prompt.value.trim();
+  if (!text || isEnhancing.value || isGenerating.value) return;
+
+  isEnhancing.value = true;
+  try {
+    const response = await axios.post(`${API_URL}/enhance-prompt`, { prompt: text });
+    if (response.data && response.data.enhanced_prompt) {
+      prompt.value = response.data.enhanced_prompt;
+      toast.info("Prompt enhanced with AI");
+    }
+  } catch (error) {
+    console.error("Ошибка при улучшении промпта:", error);
+    toast.error("Failed to enhance prompt");
+  } finally {
+    isEnhancing.value = false;
+  }
+};
+
+const sendMessage = async () => {
+  const text = prompt.value.trim();
+  if (!text || isGenerating.value || isOverLimit.value) return;
+
+  // 1. Очищаем старый интервал, если он был
+  if (pollingInterval.value) clearInterval(pollingInterval.value);
+
+  // 2. Добавляем сообщение пользователя
+  messages.value.push({ role: 'user', content: text });
+  prompt.value = '';
+  isGenerating.value = true;
+  await scrollToBottom();
+
+  // 3. Создаем объект сообщения ИИ и запоминаем его индекс
+  const aiMessageIndex = messages.value.push({
+    role: 'ai',
+    loading: true,
+    progress: 0,
+    status_msg: 'Инициализация...',
+    content: '',
+    task_id: null,
+    preview: null,
+    error: false
+  }) - 1;
+
+  await scrollToBottom();
+
+  try {
+    // 4. Запрос на генерацию
+    const response = await axios.post(`${API_URL}/generate`, {
+      prompt: text, 
+      conversation_id: chatStore.currentConversationId, 
+      model: chatStore.selectedModel,
+    });
+    
+    const { task_id, conversation_id } = response.data;
+    
+    // Привязываем ID к сообщению
+    messages.value[aiMessageIndex].task_id = task_id;
+
+    // Если это новый чат — обновляем глобальный ID и историю в сайдбаре
+    if (!chatStore.currentConversationId) {
+      chatStore.currentConversationId = conversation_id;
+      await chatStore.fetchHistory(true);
+    }
+
+    // 5. ЦИКЛ ОПРОСА (Polling)
+    pollingInterval.value = setInterval(async () => {
+      try {
+        // Опрашиваем статус КОНКРЕТНОЙ задачи (этот эндпоинт мы создавали в main.py)
+        const taskRes = await axios.get(`${API_URL}/tasks/${task_id}`);
+        const data = taskRes.data;
+
+        // Прямое обновление полей объекта в массиве
+        messages.value[aiMessageIndex].progress = data.progress;
+        messages.value[aiMessageIndex].status_msg = data.status_message;
+
+        console.log(`Прогресс задачи ${task_id}: ${data.progress}%`); // Для отладки в консоли браузера
+
+        if (data.status === 'completed') {
+          clearInterval(pollingInterval.value);
+          messages.value[aiMessageIndex].loading = false; 
+          messages.value[aiMessageIndex].content = 'Готово! Вот результат:';
+          messages.value[aiMessageIndex].preview = data.preview_data; 
+          messages.value[aiMessageIndex].file_size = data.file_size;
+          messages.value[aiMessageIndex].row_count = data.row_count;
+          isGenerating.value = false; 
+          await scrollToBottom();
+        } 
+        else if (data.status === 'failed') {
+          clearInterval(pollingInterval.value);
+          messages.value[aiMessageIndex].loading = false; 
+          messages.value[aiMessageIndex].error = true; 
+          messages.value[aiMessageIndex].content = `Ошибка: ${data.error_log}`;
+          isGenerating.value = false; 
+          await scrollToBottom();
+        }
+      } catch (e) {
+        console.error('Ошибка в цикле опроса:', e);
+        // Не очищаем интервал при временной ошибке сети, пробуем дальше
+      }
+    }, 1500);
+
+  } catch (error) {
+    console.error('Ошибка при отправке:', error);
+    const errorMsg = error.response?.data?.detail || 'Ошибка соединения с сервером.';
+    messages.value[aiMessageIndex].loading = false; 
+    messages.value[aiMessageIndex].error = true; 
+    messages.value[aiMessageIndex].content = errorMsg;
+    isGenerating.value = false;
+  }
+};
+
+const confirmDelete = async () => {
+  if (!chatToDelete.value) return;
+  try {
+    await chatStore.deleteChat(chatToDelete.value);
+    showDeleteModal.value = false;
+    messages.value = [];
+    toast.success("Conversation deleted");
+  } catch (e) {
+    toast.error("Failed to delete chat");
+  }
+};
+
+// --- WATCHERS & LIFECYCLE ---
 
 watch(() => chatStore.currentConversationId, (newId) => {
   if (newId) {
@@ -63,80 +219,7 @@ watch(() => chatStore.currentConversationId, (newId) => {
   }
 }, { immediate: true });
 
-const sendMessage = async () => {
-  const text = prompt.value.trim();
-  if (!text || isGenerating.value) return;
-
-  messages.value.push({ role: 'user', content: text });
-  prompt.value = '';
-  isGenerating.value = true;
-  scrollToBottom();
-
-  const aiMessage = ref({
-    role: 'ai', loading: true, progress: 0, status_msg: 'Инициализация...', content: '', task_id: null, preview: null,
-  });
-  messages.value.push(aiMessage.value);
-  scrollToBottom();
-
-  try {
-    const response = await axios.post(`${API_URL}/generate`, {
-      prompt: text, 
-      conversation_id: chatStore.currentConversationId, 
-      model: chatStore.selectedModel,
-    });
-    
-    const { task_id, conversation_id } = response.data;
-    aiMessage.value.task_id = task_id;
-
-    // Если это был новый чат - сохраняем ID и обновляем историю в сайдбаре
-    if (!chatStore.currentConversationId) {
-      chatStore.currentConversationId = conversation_id;
-      chatStore.fetchHistory(true);
-    }
-
-    pollingInterval.value = setInterval(async () => {
-      try {
-        const chatRes = await axios.get(`${API_URL}/conversations/${conversation_id}`);
-        const tasks = chatRes.data;
-        const currentTaskData = tasks.find((t) => t.id === task_id);
-
-        if (currentTaskData) {
-          aiMessage.value.progress = currentTaskData.progress;
-          aiMessage.value.status_msg = currentTaskData.status_message;
-
-          if (currentTaskData.status === 'completed') {
-            aiMessage.value.loading = false; 
-            aiMessage.value.content = 'Готово! Вот результат:';
-            aiMessage.value.preview = currentTaskData.preview_data; 
-            aiMessage.value.file_size = currentTaskData.file_size;
-            aiMessage.value.row_count = currentTaskData.row_count;
-            clearInterval(pollingInterval.value); 
-            isGenerating.value = false; 
-            scrollToBottom();
-          } else if (currentTaskData.status === 'failed') {
-            aiMessage.value.loading = false; 
-            aiMessage.value.error = true; 
-            aiMessage.value.content = `Ошибка: ${currentTaskData.error_log}`;
-            clearInterval(pollingInterval.value); 
-            isGenerating.value = false; 
-            scrollToBottom();
-          }
-        }
-      } catch (e) {
-        console.error('Ошибка поллинга:', e);
-      }
-    }, 2000);
-  } catch (error) {
-    console.error(error);
-    aiMessage.value.loading = false; 
-    aiMessage.value.error = true; 
-    aiMessage.value.content = 'Ошибка соединения с сервером.';
-    isGenerating.value = false;
-  }
-};
-
 onMounted(() => {
-  // При загрузке проверяем, нет ли уже выбранного чата
   if (chatStore.currentConversationId) {
     loadFullChat(chatStore.currentConversationId);
   }
@@ -144,10 +227,23 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex-1 flex flex-col relative w-full h-full overflow-hidden">
+  <!-- МОДАЛКА УДАЛЕНИЯ -->
+  <BaseModal 
+    :show="showDeleteModal"
+    title="Delete Chat?"
+    description="This action cannot be undone. All generated files for this conversation will be removed."
+    confirmText="Delete"
+    :isDestructive="true"
+    @close="showDeleteModal = false"
+    @confirm="confirmDelete"
+  />
+
+  <div class="flex-1 flex flex-col relative w-full h-full overflow-hidden bg-background">
     
+    <!-- Область сообщений -->
     <section ref="chatContainer" class="flex-1 overflow-y-auto pt-8 pb-32 px-6 max-w-6xl mx-auto w-full flex flex-col gap-12 custom-scrollbar">
       
+      <!-- Пустое состояние -->
       <div v-if="messages.length === 0" class="mt-20 flex flex-col items-center text-center opacity-70">
         <div class="w-16 h-16 rounded-2xl bg-surface-container-highest flex items-center justify-center mb-6">
           <span class="material-symbols-outlined text-[32px] text-primary">auto_awesome</span>
@@ -158,6 +254,7 @@ onMounted(() => {
         </p>
       </div>
 
+      <!-- Сообщения -->
       <ChatMessage 
         v-for="(msg, idx) in messages" 
         :key="idx" 
@@ -165,28 +262,61 @@ onMounted(() => {
       />
     </section>
 
-    <!-- Поле ввода -->
+    <!-- Подвал с полем ввода -->
     <footer class="absolute bottom-0 right-0 left-0 bg-gradient-to-t from-background via-background to-transparent pt-12 pb-8 px-4 md:px-8 z-10">
-      <div class="max-w-4xl mx-auto">
-        <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2 focus-within:ring-primary/20">
+      <div class="max-w-4xl mx-auto relative">
+        
+        <!-- Предупреждение о лимите -->
+        <transition name="fade">
+          <div v-if="isOverLimit" class="absolute -top-8 left-0 right-0 text-center text-xs font-bold text-red-500 bg-red-100 py-1 rounded-full w-max mx-auto px-4 shadow-sm border border-red-200">
+            Maximum limit reached ({{ MAX_CHARS }} chars)
+          </div>
+        </transition>
+
+        <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2"
+             :class="isOverLimit ? 'focus-within:ring-red-500/50 border-red-500/50' : 'focus-within:ring-primary/20'">
           
-          <button class="w-12 h-12 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
-            <span class="material-symbols-outlined">attach_file</span>
+          <!-- Кнопка улучшения промпта (Вместо скрепки) -->
+          <button 
+            @click="enhancePrompt"
+            :disabled="isEnhancing || !prompt.trim() || isGenerating"
+            title="Improve prompt with AI"
+            class="w-12 h-12 flex items-center justify-center transition-colors group disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            :class="prompt.trim() ? 'text-primary hover:bg-primary/10 rounded-full' : 'text-on-surface-variant'"
+          >
+            <span v-if="!isEnhancing" class="material-symbols-outlined group-hover:scale-110 transition-transform">
+              auto_fix_high
+            </span>
+            <span v-else class="material-symbols-outlined animate-spin text-primary">
+              sync
+            </span>
           </button>
           
           <textarea 
             v-model="prompt"
+            :maxlength="MAX_CHARS"
             @keydown.enter.prevent="sendMessage"
-            class="flex-1 bg-transparent border-none focus:ring-0 py-3 px-2 text-on-surface resize-none font-medium placeholder:text-on-surface-variant/40 outline-none" 
+            class="flex-1 bg-transparent border-none focus:ring-0 py-3 px-2 text-on-surface resize-none font-medium placeholder:text-on-surface-variant/40 outline-none h-[48px] leading-[24px]" 
             placeholder="Describe the dataset you want to generate..." 
             rows="1"
           ></textarea>
           
-          <div class="flex items-center gap-2 pr-2">
+          <div class="flex items-center gap-3 pr-2 shrink-0">
+            <!-- Счетчик символов -->
+            <span 
+              v-if="charCount > 0"
+              class="text-[10px] font-bold transition-colors tabular-nums"
+              :class="isNearLimit ? 'text-red-500' : 'text-on-surface-variant/40'"
+            >
+              {{ charCount }} / {{ MAX_CHARS }}
+            </span>
+
+            <!-- Кнопка отправки -->
             <button 
-              :disabled="isGenerating || !prompt.trim()"
+              :disabled="isGenerating || !prompt.trim() || isOverLimit"
               @click="sendMessage"
               class="bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              :class="{'bg-red-500 shadow-red-500/30': isOverLimit}"
             >
               <span v-if="!isGenerating" class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
               <span v-else class="material-symbols-outlined animate-spin">sync</span>
@@ -194,12 +324,13 @@ onMounted(() => {
           </div>
         </div>
         
+        <!-- Значки внизу -->
         <div class="mt-3 flex justify-center gap-6">
-          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
-            <span class="material-symbols-outlined text-[14px]">shield</span> Encrypted Connection
+          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-widest">
+            <span class="material-symbols-outlined text-[14px]">shield</span> Isolated Sandbox
           </span>
-          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/50 uppercase tracking-widest">
-            <span class="material-symbols-outlined text-[14px]">bolt</span> High Speed Generation
+          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-widest">
+            <span class="material-symbols-outlined text-[14px]">bolt</span> Real-time generation
           </span>
         </div>
       </div>
@@ -208,8 +339,11 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e2db; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); border-radius: 10px; }
 .font-headline { font-family: 'Manrope', sans-serif; }
+
+.fade-enter-active, .fade-leave-active { transition: all 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(10px); }
 </style>

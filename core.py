@@ -122,61 +122,88 @@ def generate_and_run(
     }
 
 def get_generation_code(prompt: str, task_id: int, model_name: str) -> str | None:
-    # Путь внутри докера (относительно /app)
     docker_path = f"storage/result_{task_id}.csv"
     
-    instr = f"""Напиши Python код (Pandas + Faker) для генерации данных.
-    ПРАВИЛА:
-    1. Импортируй: import pandas as pd; from faker import Faker.
-    2. Локализация: fake = Faker('ru_RU').
-    3. Создай DataFrame 'df'.
-    4. Сохрани результат ОБЯЗАТЕЛЬНО этой командой: df.to_csv('{docker_path}', index=False)
-    5. ЗАПРЕЩЕНО: использовать библиотеку 'os', использовать print().
-    6. Выдай ТОЛЬКО чистый код без пояснений."""
+    system_prompt = f"""You are an Expert Data Engineer specializing in generating highly realistic synthetic datasets.
+Your task is to write a Python script using `pandas`, `faker`, and `numpy`/`random` to generate data based on the user's request.
+
+[RULES & REQUIREMENTS]
+1. LIBRARIES: Import and use `pandas as pd` and `Faker`. You may use `numpy` or `random` for logic, distributions, and injecting anomalies.
+2. LOCALE: Initialize Faker with Russian locale by default (`fake = Faker('ru_RU')`), unless the user explicitly requests another language.
+3. LOGIC: Pay strict attention to requested correlations, dependencies (e.g., 'if age < 18, driver_license is None'), probabilities, and intentional data errors (nulls, duplicates) if asked.
+4. DATAFRAME: The final data must be stored in a Pandas DataFrame named `df`.
+5. EXPORT: You MUST save the dataset using exactly this command: df.to_csv('{docker_path}', index=False)
+
+[CONSTRAINTS - CRITICAL]
+- DO NOT use the `os` module under any circumstances.
+- DO NOT use `print()` statements.
+- DO NOT wrap the code in Markdown formatting (no ```python ... ```).
+- Output ONLY the raw, executable Python code. No explanations.
+"""
 
     try:
         resp = client.models.generate_content(
             model=model_name, 
-            contents=f"{instr}\n\nЗАПРОС: {prompt}"
+            contents=f"{system_prompt}\n\n[USER REQUEST]\n{prompt}"
         )
         text = resp.text if resp.text else ""
-        return re.sub(r"```python|```", "", text).strip()
-    except Exception as e: return None
+        return re.sub(r"```[a-zA-Z]*\n|```", "", text).strip() # Улучшенный regex для очистки
+    except Exception as e:
+        print(f"LLM Generation Error: {e}") 
+        return None
+
 
 def get_fix_from_llm(bad_code: str | None, error_msg: str | None, task_id: int, model_name: str) -> str | None:
     if not bad_code or not error_msg: return None
     docker_path = f"storage/result_{task_id}.csv"
     
-    prompt = f"""Исправь ошибку в Python коде. НЕ ИСПОЛЬЗУЙ библиотеку 'os'.
-    ОШИБКА: {error_msg}
-    КОД:
-    {bad_code}
-    
-    ВАЖНО: Результат сохранить в: {docker_path} командой df.to_csv(..., index=False).
-    Выдай только исправленный код."""
+    system_prompt = f"""You are a Senior Python Debugger. The previous code generated to create a synthetic dataset failed with an error.
+Your task is to analyze the traceback and fix the code.
+
+[ERROR TRACEBACK]
+{error_msg}[PREVIOUS BAD CODE]
+{bad_code}
+
+[RULES FOR THE FIX]
+1. Fix the bug without changing the original intent of the data generation.
+2. Do NOT use the `os` module.
+3. The final DataFrame `df` MUST be saved using exactly: df.to_csv('{docker_path}', index=False)
+4. Output ONLY the raw, executable Python code. No Markdown blocks, no explanations.
+"""
     
     try:
-        resp = client.models.generate_content(model=model_name, contents=prompt)
+        resp = client.models.generate_content(model=model_name, contents=system_prompt)
         text = resp.text if resp.text else ""
-        return re.sub(r"```python|```", "", text).strip()
-    except Exception as e: return None
+        return re.sub(r"```[a-zA-Z]*\n|```", "", text).strip()
+    except Exception as e: 
+        print(f"LLM Self-Healing Error: {e}")
+        return None
+
 
 def get_modification_code(user_changes: str, old_code: str, task_id: int, model_name: str) -> str | None:
     docker_path = f"storage/result_{task_id}.csv"
-    instr = f"""Обнови Python код.
-    СТАРЫЙ КОД: {old_code}
-    ИЗМЕНЕНИЯ: {user_changes}
     
-    ПРАВИЛА:
-    1. Сохрани: df.to_csv('{docker_path}', index=False)
-    2. НЕ используй 'os'. 
-    3. Верни полный код."""
+    system_prompt = f"""You are an Expert Data Engineer modifying an existing synthetic dataset generation script.
+Update the provided Python code strictly according to the user's new requirements.
+
+[OLD CODE]
+{old_code}[USER REQUESTED CHANGES]
+{user_changes}
+
+[RULES & CONSTRAINTS]
+1. Apply the changes logically without breaking the rest of the script.
+2. The final DataFrame `df` MUST be saved using exactly: df.to_csv('{docker_path}', index=False)
+3. DO NOT use the `os` module.
+4. Output ONLY the raw, executable Python code. No Markdown blocks, no explanations.
+"""
 
     try:
-        resp = client.models.generate_content(model=model_name, contents=instr)
+        resp = client.models.generate_content(model=model_name, contents=system_prompt)
         text = resp.text if resp.text else ""
-        return re.sub(r"```python|```", "", text).strip()
-    except Exception as e: return None
+        return re.sub(r"```[a-zA-Z]*\n|```", "", text).strip()
+    except Exception as e: 
+        print(f"LLM Modification Error: {e}")
+        return None
 
 def run_in_sandbox(code: str, task_id: int) -> tuple[bool, str | None]:
     script_name = f"temp_script_{task_id}.py"

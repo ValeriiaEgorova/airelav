@@ -3,7 +3,8 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
-
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 import pandas as pd
 import redis.asyncio as redis
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
@@ -24,9 +25,11 @@ from auth import (
 )
 from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
-from models import APIKey, Conversation, GenerateRequest, GenerationTask, User
+from models import APIKey, Conversation, GenerateRequest, GenerationTask, User, EnhancePromptRequest
 
 app = FastAPI(title="AIrelav API")
+
+scheduler = BackgroundScheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +63,14 @@ async def on_startup() -> None:
         "redis://localhost:6379", encoding="utf-8", decode_responses=True
     )
     await FastAPILimiter.init(redis_connection)
+    scheduler.add_job(
+        cleanup_expired_files,
+        trigger=IntervalTrigger(hours=12), 
+        id="gc_job",
+        name="Cleanup expired generated files",
+        replace_existing=True,
+    )
+    scheduler.start()
 
 
 @app.post("/auth/register")
@@ -96,19 +107,18 @@ def login(
 
 @app.get("/conversations")
 async def get_conversations(
-    offset: int = 0,
-    limit: int = 20,
+    offset: int = 0, limit: int = 20,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Any:
     return session.exec(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
+        .where(Conversation.is_deleted == False)
         .order_by(desc(Conversation.created_at))
         .offset(offset)
         .limit(limit)
     ).all()
-
 
 @app.get("/conversations/{conversation_id}")
 async def get_conversation_history(
@@ -117,40 +127,47 @@ async def get_conversation_history(
     session: Session = Depends(get_session),
 ) -> Any:
     chat = session.get(Conversation, conversation_id)
-    if not chat or chat.user_id != current_user.id:
+    if not chat or chat.user_id != current_user.id or chat.is_deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
 
     tasks = session.exec(
         select(GenerationTask)
         .where(GenerationTask.conversation_id == conversation_id)
+        .where(GenerationTask.is_deleted == False)
         .order_by(desc(GenerationTask.created_at))
     ).all()
     return tasks
 
 
-@app.delete("/history/{conversation_id}")
+@app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: int,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     chat = session.get(Conversation, conversation_id)
-    if not chat or chat.user_id != current_user.id:
+    if not chat or chat.user_id != current_user.id or chat.is_deleted:
         raise HTTPException(status_code=404, detail="Chat not found")
+
+    chat.is_deleted = True
+    session.add(chat)
 
     tasks = session.exec(
         select(GenerationTask).where(GenerationTask.conversation_id == conversation_id)
     ).all()
+    
     for task in tasks:
+        task.is_deleted = True
+        session.add(task)
+        
         if task.file_path and os.path.exists(task.file_path):
             try:
                 os.remove(task.file_path)
             except OSError:
                 pass
 
-    session.delete(chat)
     session.commit()
-    return {"message": "Conversation deleted"}
+    return {"message": "Conversation deleted successfully"}
 
 
 @app.post("/generate", dependencies=[Depends(RateLimiter(times=20, seconds=60))])
@@ -176,6 +193,18 @@ async def start_generation(
                 detail="Лимит тарифа Free исчерпан (10 генераций в сутки).",
             )
 
+    active_task = session.exec(
+        select(GenerationTask)
+        .where(GenerationTask.user_id == current_user.id)
+        .where(GenerationTask.status.in_(["pending", "processing"]))
+    ).first()
+
+    if active_task:
+        raise HTTPException(
+            status_code=429, # 429 Too Many Requests
+            detail="У вас уже выполняется генерация данных. Дождитесь её завершения перед отправкой нового запроса."
+        )
+    
     previous_code = None
 
     prompt = request.prompt
@@ -204,11 +233,15 @@ async def start_generation(
         if last_task:
             previous_code = last_task.generated_code
 
+    expiration_days = 1 if current_user.tier == "free" else 7
+    expires_time = datetime.utcnow() + timedelta(days=expiration_days)
+
     task = GenerationTask(
         prompt=prompt,
         file_format="csv",
         user_id=current_user.id,
         conversation_id=conversation_id,
+        expires_at=expires_time,
         ai_model=model,
     )
     session.add(task)
@@ -240,6 +273,11 @@ def create_api_key(
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
+    if len(user.api_keys) >= 10:
+        raise HTTPException(
+            status_code=400, 
+            detail="Вы достигли лимита в 10 активных API ключей. Удалите старые, чтобы создать новый."
+        )
     random_part = secrets.token_urlsafe(16)
     new_key_str = f"sk-relav-{random_part}"
 
@@ -403,6 +441,110 @@ def get_task_status(
         "status": task.status,
         "progress": task.progress,
         "status_message": task.status_message,
-        "preview_data": task.preview_data,
+        "preview_data": task.preview_data, # Важно для превью!
         "error_log": task.error_log,
+        "file_size": task.file_size,
+        "row_count": task.row_count
     }
+
+@app.post("/enhance-prompt", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
+async def enhance_prompt(
+    request: EnhancePromptRequest,
+    current_user: User = Depends(get_current_user_or_api_key),
+) -> dict[str, str]:
+    
+    if not request.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt is empty")
+
+    system_instruction = """
+    Ты — Data Engineer. Твоя задача: улучшить короткий запрос пользователя для генератора синтетических данных.
+    
+    ПРАВИЛА:
+    1. Сделай запрос более профессиональным: добавь нужные колонки, распределения (например, нормальное) или логические связи (например, "зарплата зависит от должности").
+    2. КРАТКОСТЬ: Твой ответ должен быть ОЧЕНЬ лаконичным (максимум 2-3 предложения).
+    3. ЛИМИТ СИМВОЛОВ: Строго уложись в 800 символов.
+    4. Ответь ТОЛЬКО улучшенным текстом, без приветствий, без пояснений, без кавычек.
+    5. Сохраняй язык оригинала (русский или английский).
+    
+    Пример:
+    Оригинал: "сделай базу сотрудников"
+    Улучшение: "Сгенерируй датасет из 500 сотрудников: ФИО, email (5% ошибок), должность, зарплата (зависит от должности) и дата найма (2020-2024)."
+    """
+    
+    try:
+        from core import client, DEFAULT_MODEL
+        
+        resp = client.models.generate_content(
+            model=DEFAULT_MODEL,
+            contents=f"{system_instruction}\n\nОРИГИНАЛЬНЫЙ ЗАПРОС:\n{request.prompt}"
+        )
+        
+        enhanced_text = resp.text.strip() if resp.text else request.prompt
+        
+        if len(enhanced_text) > 990:
+            enhanced_text = enhanced_text[:990] + "..."
+            
+        return {"enhanced_prompt": enhanced_text}
+        
+    except Exception as e:
+        print(f"Enhance error: {e}")
+        return {"enhanced_prompt": request.prompt}
+
+
+def cleanup_expired_files():
+    """Фоновая задача: удаляет физические файлы, чей срок жизни истек."""
+    print(f"[{datetime.utcnow()}] Запуск Garbage Collector...")
+    with Session(engine) as session:
+        now = datetime.utcnow()
+        expired_tasks = session.exec(
+            select(GenerationTask)
+            .where(GenerationTask.expires_at < now)
+            .where(GenerationTask.file_path != None)
+        ).all()
+
+        count = 0
+        for task in expired_tasks:
+            if task.file_path and os.path.exists(task.file_path):
+                try:
+                    os.remove(task.file_path)
+                    task.file_path = None
+                    task.error_log = "Файл удален по истечении срока хранения (TTL)."
+                    session.add(task)
+                    count += 1
+                except OSError as e:
+                    print(f"GC Error: Не удалось удалить файл {task.file_path}: {e}")
+        
+        session.commit()
+        if count > 0:
+            print(f"Garbage Collector: Удалено {count} просроченных файлов.")
+
+@app.get("/auth/me")
+async def get_user_profile(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    total_tasks = session.exec(
+        select(func.count(GenerationTask.id))
+        .where(GenerationTask.user_id == current_user.id)
+        .where(GenerationTask.status == "completed")
+    ).one()
+
+    total_rows = session.exec(
+        select(func.sum(GenerationTask.row_count))
+        .where(GenerationTask.user_id == current_user.id)
+    ).one() or 0
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "tier": current_user.tier,
+        "stats": {
+            "total_datasets": total_tasks,
+            "total_rows": total_rows,
+            "active_keys": len(current_user.api_keys)
+        }
+    }
+
+@app.on_event("shutdown")
+def shutdown_event():
+    scheduler.shutdown()
