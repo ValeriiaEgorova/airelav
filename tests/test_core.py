@@ -1,6 +1,7 @@
-import os
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
+
 from core import generate_and_run
 
 
