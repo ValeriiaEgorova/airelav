@@ -48,11 +48,63 @@ const loginWithGoogle = () => {
   // Аналогично для Google, когда настроите его на бэкенде
   window.location.href = `${API_URL}/auth/google/login`;
 };
+
+import BaseModal from './common/BaseModal.vue';
+
+const showForgotModal = ref(false);
+const forgotEmail = ref('');
+const isSendingReset = ref(false);
+
+const handleForgotPassword = async () => {
+  if (!forgotEmail.value) {
+    toast.warning("Please enter your email");
+    return;
+  }
+  
+  isSendingReset.value = true;
+  try {
+    const res = await axios.post(`${API_URL}/auth/forgot-password`, { email: forgotEmail.value });
+    showForgotModal.value = false;
+    
+    // ЭМУЛЯЦИЯ ПИСЬМА: Показываем ссылку прямо в тосте (для защиты диплома)
+    if (res.data.demo_link) {
+      toast.success("Link generated! (Check console for demo link)", { timeout: 5000 });
+      console.log("DEMO RESET LINK:", res.data.demo_link);
+      
+      // Для удобства тестирования можно сразу перекинуть юзера
+      // window.location.href = res.data.demo_link;
+    } else {
+       toast.success(res.data.message);
+    }
+  } catch (error) {
+    toast.error("Failed to process request");
+  } finally {
+    isSendingReset.value = false;
+  }
+};
+
 </script>
 
 <template>
   <div class="bg-background text-on-surface font-['Outfit'] min-h-screen flex flex-col items-center justify-center p-6 mesh-bg relative overflow-x-hidden">
-    
+    <BaseModal 
+  :show="showForgotModal"
+  title="Reset Password"
+  description="Enter your email address and we'll send you a link to reset your password."
+  confirmText="Send Link"
+  @close="showForgotModal = false"
+  @confirm="handleForgotPassword"
+>
+  <div class="mt-2 mb-6">
+    <input 
+      v-model="forgotEmail" 
+      type="email" 
+      placeholder="you@example.com" 
+      class="w-full p-3 bg-white/50 border border-primary/20 rounded-xl focus:ring-2 focus:ring-primary outline-none text-sm font-medium"
+      @keyup.enter="handleForgotPassword"
+    />
+  </div>
+</BaseModal>
     <div class="data-line-grid"></div>
     <div class="noise"></div>
     <div class="fixed inset-0 data-dot-grid pointer-events-none"></div>
@@ -140,9 +192,17 @@ const loginWithGoogle = () => {
                 
                 <div class="space-y-2">
                     <div class="flex justify-between items-center px-4">
-                        <label class="text-[11px] font-bold uppercase tracking-widest text-primary/70">Password</label>
-                        <a v-if="!isRegistering" class="text-[11px] font-extrabold text-primary-light hover:underline" href="#">Forgot password?</a>
-                    </div>
+    <label class="text-[11px] font-bold uppercase tracking-widest text-primary/70">Password</label>
+        <a 
+      v-if="!isRegistering" 
+      @click.prevent="showForgotModal = true" 
+      class="text-[11px] font-extrabold text-primary-light hover:underline cursor-pointer" 
+      href="#"
+    >
+      Forgot password?
+    </a>
+
+</div>
                     <div class="relative">
                         <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary/40">key</span>
                         <input 

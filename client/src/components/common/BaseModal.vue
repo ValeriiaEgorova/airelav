@@ -5,7 +5,12 @@ defineEmits(['close', 'confirm']);
 
 <template>
   <Transition name="fade">
-    <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    <!-- Убраны звездочки и знаки решетки. Добавлен z-[9999] -->
+    <div 
+      v-if="show" 
+      class="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      @click.self="$emit('close')"
+    >
       <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-pop">
         <div class="p-6">
           <h3 class="text-xl font-bold text-gray-900 mb-2">{{ title }}</h3>
@@ -13,9 +18,7 @@ defineEmits(['close', 'confirm']);
           
           <slot></slot>
 
-          <!-- Внутри секции <template> компонента BaseModal.vue -->
           <div class="flex space-x-3">
-            <!-- Кнопка отмены -->
             <button 
               @click="$emit('close')" 
               class="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-all active:scale-95"
@@ -23,7 +26,6 @@ defineEmits(['close', 'confirm']);
               Cancel
             </button>
 
-            <!-- Кнопка подтверждения (Generate Key / Delete / etc.) -->
             <button 
               @click="$emit('confirm')" 
               :class="[

@@ -107,3 +107,22 @@ async def get_current_user_or_api_key(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Invalid credentials (JWT or API Key required)",
     )
+
+def create_password_reset_token(email: str) -> str:
+    """Создает токен для сброса пароля, действительный 15 минут."""
+    expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode = {"sub": email, "exp": expire, "type": "reset"}
+    
+    # SECRET_KEY у нас уже определен выше
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_password_reset_token(token: str) -> str | None:
+    """Проверяет токен и возвращает email, если токен валиден."""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "reset":
+            return None
+        return payload.get("sub")
+    except JWTError:
+        return None

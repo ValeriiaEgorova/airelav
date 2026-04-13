@@ -77,25 +77,26 @@ onMounted(fetchProfile);
           </div>
 
           <!-- Быстрые действия -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <router-link to="/api-settings" class="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/5 hover:bg-surface-container-high transition-colors group">
-              <span class="material-symbols-outlined text-blue-600 mb-4 text-3xl">vpn_key</span>
-              <h3 class="font-bold text-lg flex items-center justify-between">
-                API Management
-                <span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">arrow_forward</span>
-              </h3>
-              <p class="text-sm text-on-surface-variant mt-1">Generate and revoke your developer keys.</p>
-            </router-link>
-
-            <button @click="toast.info('Coming soon!')" class="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/5 hover:bg-surface-container-high transition-colors text-left group">
-              <span class="material-symbols-outlined text-purple-600 mb-4 text-3xl">lock_reset</span>
-              <h3 class="font-bold text-lg flex items-center justify-between">
-                Security
-                <span class="material-symbols-outlined opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">arrow_forward</span>
-              </h3>
-              <p class="text-sm text-on-surface-variant mt-1">Update your password and 2FA settings.</p>
-            </button>
-          </div>
+          <!-- Быстрые действия -->
+<div class="space-y-4">
+  <router-link 
+    to="/api-settings" 
+    class="p-6 rounded-3xl bg-surface-container-low border border-outline-variant/5 hover:bg-surface-container-high transition-all group flex items-center justify-between"
+  >
+    <div class="flex items-center gap-6">
+      <div class="w-12 h-12 rounded-2xl bg-blue-600/10 flex items-center justify-center text-blue-600">
+        <span class="material-symbols-outlined text-2xl">vpn_key</span>
+      </div>
+      <div>
+        <h3 class="font-bold text-lg text-on-surface">API Management</h3>
+        <p class="text-sm text-on-surface-variant">Generate and revoke your developer keys for REST API access.</p>
+      </div>
+    </div>
+    <span class="material-symbols-outlined text-on-surface-variant opacity-0 group-hover:opacity-100 transition-all translate-x-[-10px] group-hover:translate-x-0">
+      arrow_forward
+    </span>
+  </router-link>
+</div>
         </div>
 
         <!-- Правая колонка: Информация о тарифе -->

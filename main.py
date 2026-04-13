@@ -587,6 +587,60 @@ async def github_login():
     async with github_sso: # <--- ТУТ ASYNC
         return await github_sso.get_login_redirect()
     
+from pydantic import BaseModel
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+@app.post("/auth/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest, 
+    session: Session = Depends(get_session)
+):
+    from auth import create_password_reset_token # Импорт прямо перед использованием
+    
+    user = session.exec(select(User).where(User.email == request.email)).first()
+    
+    # Для безопасности мы не говорим, найден ли email, просто возвращаем ОК
+    if not user:
+        return {"message": "If this email is registered, you will receive a reset link."}
+
+    reset_token = create_password_reset_token(email=user.email)
+    
+    # Эмуляция отправки письма (ссылка будет в консоли)
+    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+    
+    return {
+        "message": "If this email is registered, you will receive a reset link.",
+        "demo_link": reset_link
+    }
+
+@app.post("/auth/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest, 
+    session: Session = Depends(get_session)
+):
+    from auth import verify_password_reset_token, get_password_hash # Импорты
+    
+    email = verify_password_reset_token(request.token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+        
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    # Обновляем пароль в БД
+    user.hashed_password = get_password_hash(request.new_password)
+    session.add(user)
+    session.commit()
+    
+    return {"message": "Password updated successfully"}
+
 @app.on_event("shutdown")
 def shutdown_event():
     scheduler.shutdown()

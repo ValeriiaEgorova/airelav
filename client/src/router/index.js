@@ -5,14 +5,15 @@ import Dashboard from '../components/Dashboard.vue';
 import ApiSettings from '../components/ApiSettings.vue';
 import UserPage from '../components/UserPage.vue';
 import AuthSuccess from '../components/AuthSuccess.vue';
+import ResetPassword from '../components/ResetPassword.vue';
+
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: Login },
-    
-    // --- ПРАВИЛЬНОЕ МЕСТО ДЛЯ AUTH-SUCCESS ---
     { path: '/auth-success', component: AuthSuccess },
+    { path: '/reset-password', component: ResetPassword },
 
     {
       path: '/',
