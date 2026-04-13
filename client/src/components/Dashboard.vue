@@ -27,11 +27,19 @@ const isOverLimit = computed(() => charCount.value >= MAX_CHARS);
 const showDeleteModal = ref(false);
 const chatToDelete = ref(null);
 
-// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
-const scrollToBottom = async () => {
+const scrollToBottom = async (force = false) => {
   await nextTick();
   if (chatContainer.value) {
-    chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
+    const { scrollTop, scrollHeight, clientHeight } = chatContainer.value;
+    const distanceToBottom = scrollHeight - scrollTop - clientHeight;
+
+    // Скроллим только если пользователь почти внизу (запас 150px) или если это force-вызов
+    if (force || distanceToBottom < 150) {
+      chatContainer.value.scrollTo({
+        top: scrollHeight,
+        behavior: 'smooth'
+      });
+    }
   }
 };
 
@@ -99,18 +107,31 @@ const sendMessage = async () => {
   const text = prompt.value.trim();
   if (!text || isGenerating.value || isOverLimit.value) return;
 
+  // 1. Очищаем старый интервал, если он был
+  if (pollingInterval.value) clearInterval(pollingInterval.value);
+
+  // 2. Добавляем сообщение пользователя
   messages.value.push({ role: 'user', content: text });
   prompt.value = '';
   isGenerating.value = true;
-  scrollToBottom();
+  await scrollToBottom();
 
-  const aiMessage = ref({
-    role: 'ai', loading: true, progress: 0, status_msg: 'Инициализация...', content: '', task_id: null, preview: null,
-  });
-  messages.value.push(aiMessage.value);
-  scrollToBottom();
+  // 3. Создаем объект сообщения ИИ и запоминаем его индекс
+  const aiMessageIndex = messages.value.push({
+    role: 'ai',
+    loading: true,
+    progress: 0,
+    status_msg: 'Инициализация...',
+    content: '',
+    task_id: null,
+    preview: null,
+    error: false
+  }) - 1;
+
+  await scrollToBottom();
 
   try {
+    // 4. Запрос на генерацию
     const response = await axios.post(`${API_URL}/generate`, {
       prompt: text, 
       conversation_id: chatStore.currentConversationId, 
@@ -118,53 +139,60 @@ const sendMessage = async () => {
     });
     
     const { task_id, conversation_id } = response.data;
-    aiMessage.value.task_id = task_id;
+    
+    // Привязываем ID к сообщению
+    messages.value[aiMessageIndex].task_id = task_id;
 
+    // Если это новый чат — обновляем глобальный ID и историю в сайдбаре
     if (!chatStore.currentConversationId) {
       chatStore.currentConversationId = conversation_id;
-      chatStore.fetchHistory(true);
+      await chatStore.fetchHistory(true);
     }
 
+    // 5. ЦИКЛ ОПРОСА (Polling)
     pollingInterval.value = setInterval(async () => {
       try {
-        const chatRes = await axios.get(`${API_URL}/conversations/${conversation_id}`);
-        const tasks = chatRes.data;
-        const currentTaskData = tasks.find((t) => t.id === task_id);
+        // Опрашиваем статус КОНКРЕТНОЙ задачи (этот эндпоинт мы создавали в main.py)
+        const taskRes = await axios.get(`${API_URL}/tasks/${task_id}`);
+        const data = taskRes.data;
 
-        if (currentTaskData) {
-          aiMessage.value.progress = currentTaskData.progress;
-          aiMessage.value.status_msg = currentTaskData.status_message;
+        // Прямое обновление полей объекта в массиве
+        messages.value[aiMessageIndex].progress = data.progress;
+        messages.value[aiMessageIndex].status_msg = data.status_message;
 
-          if (currentTaskData.status === 'completed') {
-            aiMessage.value.loading = false; 
-            aiMessage.value.content = 'Готово! Вот результат:';
-            aiMessage.value.preview = currentTaskData.preview_data; 
-            aiMessage.value.file_size = currentTaskData.file_size;
-            aiMessage.value.row_count = currentTaskData.row_count;
-            clearInterval(pollingInterval.value); 
-            isGenerating.value = false; 
-            toast.success("Generation complete");
-            scrollToBottom();
-          } else if (currentTaskData.status === 'failed') {
-            aiMessage.value.loading = false; 
-            aiMessage.value.error = true; 
-            aiMessage.value.content = `Ошибка: ${currentTaskData.error_log}`;
-            clearInterval(pollingInterval.value); 
-            isGenerating.value = false; 
-            scrollToBottom();
-          }
+        console.log(`Прогресс задачи ${task_id}: ${data.progress}%`); // Для отладки в консоли браузера
+
+        if (data.status === 'completed') {
+          clearInterval(pollingInterval.value);
+          messages.value[aiMessageIndex].loading = false; 
+          messages.value[aiMessageIndex].content = 'Готово! Вот результат:';
+          messages.value[aiMessageIndex].preview = data.preview_data; 
+          messages.value[aiMessageIndex].file_size = data.file_size;
+          messages.value[aiMessageIndex].row_count = data.row_count;
+          isGenerating.value = false; 
+          await scrollToBottom();
+        } 
+        else if (data.status === 'failed') {
+          clearInterval(pollingInterval.value);
+          messages.value[aiMessageIndex].loading = false; 
+          messages.value[aiMessageIndex].error = true; 
+          messages.value[aiMessageIndex].content = `Ошибка: ${data.error_log}`;
+          isGenerating.value = false; 
+          await scrollToBottom();
         }
       } catch (e) {
-        console.error('Ошибка поллинга:', e);
+        console.error('Ошибка в цикле опроса:', e);
+        // Не очищаем интервал при временной ошибке сети, пробуем дальше
       }
-    }, 2000);
+    }, 1500);
+
   } catch (error) {
-    const msg = error.response?.data?.detail || 'Ошибка соединения с сервером.';
-    aiMessage.value.loading = false; 
-    aiMessage.value.error = true; 
-    aiMessage.value.content = msg;
+    console.error('Ошибка при отправке:', error);
+    const errorMsg = error.response?.data?.detail || 'Ошибка соединения с сервером.';
+    messages.value[aiMessageIndex].loading = false; 
+    messages.value[aiMessageIndex].error = true; 
+    messages.value[aiMessageIndex].content = errorMsg;
     isGenerating.value = false;
-    toast.error(msg);
   }
 };
 

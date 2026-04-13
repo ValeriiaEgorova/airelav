@@ -441,8 +441,10 @@ def get_task_status(
         "status": task.status,
         "progress": task.progress,
         "status_message": task.status_message,
-        "preview_data": task.preview_data,
+        "preview_data": task.preview_data, # Важно для превью!
         "error_log": task.error_log,
+        "file_size": task.file_size,
+        "row_count": task.row_count
     }
 
 @app.post("/enhance-prompt", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
@@ -515,6 +517,33 @@ def cleanup_expired_files():
         session.commit()
         if count > 0:
             print(f"Garbage Collector: Удалено {count} просроченных файлов.")
+
+@app.get("/auth/me")
+async def get_user_profile(
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+):
+    total_tasks = session.exec(
+        select(func.count(GenerationTask.id))
+        .where(GenerationTask.user_id == current_user.id)
+        .where(GenerationTask.status == "completed")
+    ).one()
+
+    total_rows = session.exec(
+        select(func.sum(GenerationTask.row_count))
+        .where(GenerationTask.user_id == current_user.id)
+    ).one() or 0
+
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "tier": current_user.tier,
+        "stats": {
+            "total_datasets": total_tasks,
+            "total_rows": total_rows,
+            "active_keys": len(current_user.api_keys)
+        }
+    }
 
 @app.on_event("shutdown")
 def shutdown_event():

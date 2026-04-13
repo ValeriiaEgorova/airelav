@@ -60,8 +60,9 @@ const confirmDelete = async () => {
   }
 };
 
-onMounted(() => {
-  chatStore.fetchHistory(true);
+onMounted(async () => {
+  await chatStore.fetchUser();
+  await chatStore.fetchHistory(); 
 });
 </script>
 
@@ -94,6 +95,7 @@ onMounted(() => {
     <main class="md:ml-72 flex-1 flex flex-col h-screen relative">
       <Navbar 
         :user-email="chatStore.userEmail" 
+        :user-tier="chatStore.userTier" 
         :selected-model="chatStore.selectedModel"
         @update:model="(val) => chatStore.selectedModel = val"
       />

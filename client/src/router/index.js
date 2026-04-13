@@ -1,8 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import MainLayout from '../components/MainLayout.vue'; // Импорт оболочки
+import MainLayout from '../components/MainLayout.vue';
 import Login from '../components/Login.vue';
 import Dashboard from '../components/Dashboard.vue';
 import ApiSettings from '../components/ApiSettings.vue';
+import UserPage from '../components/UserPage.vue';
 
 const router = createRouter({
   history: createWebHistory(),
@@ -10,10 +11,11 @@ const router = createRouter({
     { path: '/login', component: Login },
     {
       path: '/',
-      component: MainLayout, // Главная оболочка
+      component: MainLayout, 
       children: [
         { path: '', name: 'dashboard', component: Dashboard },
         { path: 'api-settings', name: 'api-settings', component: ApiSettings },
+        { path: 'profile', name: 'profile', component: UserPage },
       ],
       meta: { requiresAuth: true }
     }
