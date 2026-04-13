@@ -19,10 +19,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="min-h-screen flex items-center justify-center">
+  <div class="flex min-h-screen items-center justify-center">
     <div class="text-center">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-      <p class="mt-4 text-gray-600 font-medium">Authenticating with GitHub...</p>
+      <div
+        class="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary"
+      ></div>
+      <p class="mt-4 font-medium text-gray-600">
+        Authenticating with GitHub...
+      </p>
     </div>
   </div>
 </template>

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue';
 import axios from 'axios';
-import { useToast } from "vue-toastification";
+import { useToast } from 'vue-toastification';
 import BaseModal from '../components/common/BaseModal.vue'; // Проверьте путь к компоненту
 
 const toast = useToast();
@@ -48,8 +48,8 @@ const generateNewKey = async () => {
 
   isCreating.value = true;
   try {
-    await axios.post(`${API_URL}/api-keys`, null, { 
-      params: { name: newKeyName.value } 
+    await axios.post(`${API_URL}/api-keys`, null, {
+      params: { name: newKeyName.value },
     });
     showKeyModal.value = false;
     await fetchKeys();
@@ -95,16 +95,19 @@ const copyToClipboard = (text) => {
 
 const filteredKeys = computed(() => {
   const query = searchQuery.value.toLowerCase();
-  return apiKeys.value.filter(k => 
-    (k.name || '').toLowerCase().includes(query) ||
-    (k.key || '').toLowerCase().includes(query)
+  return apiKeys.value.filter(
+    (k) =>
+      (k.name || '').toLowerCase().includes(query) ||
+      (k.key || '').toLowerCase().includes(query)
   );
 });
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
   return new Date(dateStr).toLocaleDateString('en-US', {
-    day: 'numeric', month: 'short', year: 'numeric',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
 };
 
@@ -115,50 +118,58 @@ onMounted(() => {
 
 <template>
   <!-- МОДАЛКА: СОЗДАНИЕ КЛЮЧА -->
-  <BaseModal 
+  <BaseModal
     :show="showKeyModal"
     title="Create New API Key"
     description="Give your key a name to remember where you use it."
-    confirmText="Generate Key"
+    confirm-text="Generate Key"
     @close="showKeyModal = false"
     @confirm="generateNewKey"
   >
-    <div class="mt-2 mb-6">
-      <input 
-        v-model="newKeyName" 
-        type="text" 
-        placeholder="e.g. Production App" 
-        class="w-full p-3 bg-surface-container-low border border-outline-variant/20 rounded-xl focus:ring-2 focus:ring-primary outline-none text-on-surface"
+    <div class="mb-6 mt-2">
+      <input
+        v-model="newKeyName"
+        type="text"
+        placeholder="e.g. Production App"
+        class="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low p-3 text-on-surface outline-none focus:ring-2 focus:ring-primary"
         @keyup.enter="generateNewKey"
       />
     </div>
   </BaseModal>
 
   <!-- МОДАЛКА: УДАЛЕНИЕ КЛЮЧА -->
-  <BaseModal 
+  <BaseModal
     :show="showDeleteModal"
     title="Revoke API Key?"
     description="Any applications using this key will immediately lose access to the Airelav API. This action cannot be undone."
-    confirmText="Revoke Key"
-    :isDestructive="true"
+    confirm-text="Revoke Key"
+    :is-destructive="true"
     @close="showDeleteModal = false"
     @confirm="handleRevoke"
   />
 
-  <div class="pt-8 px-8 pb-12 w-full overflow-y-auto h-screen custom-scrollbar bg-background">
-    <div class="max-w-6xl mx-auto">
-      
+  <div
+    class="custom-scrollbar h-screen w-full overflow-y-auto bg-background px-8 pb-12 pt-8"
+  >
+    <div class="mx-auto max-w-6xl">
       <!-- Header -->
-      <div class="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
+      <div
+        class="mb-12 flex flex-col justify-between gap-6 md:flex-row md:items-end"
+      >
         <div class="space-y-2">
-          <h1 class="text-4xl font-headline font-extrabold text-on-background tracking-tight">API Management</h1>
-          <p class="text-on-surface-variant max-w-lg leading-relaxed">
-            Securely manage your access keys for the Airelav Data Engine. Use these keys to authenticate your requests via our REST API.
+          <h1
+            class="font-headline text-4xl font-extrabold tracking-tight text-on-background"
+          >
+            API Management
+          </h1>
+          <p class="max-w-lg leading-relaxed text-on-surface-variant">
+            Securely manage your access keys for the Airelav Data Engine. Use
+            these keys to authenticate your requests via our REST API.
           </p>
         </div>
-        <button 
+        <button
+          class="flex w-fit items-center gap-3 rounded-full bg-primary px-8 py-4 font-bold text-on-primary shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-95"
           @click="openCreateModal"
-          class="bg-primary text-on-primary px-8 py-4 rounded-full font-bold flex items-center gap-3 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all w-fit"
         >
           <span class="material-symbols-outlined">add</span>
           Create New Key
@@ -166,42 +177,66 @@ onMounted(() => {
       </div>
 
       <!-- Stats -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-        <div class="bg-surface-container-low p-6 rounded-2xl flex flex-col justify-between min-h-[140px] border border-outline-variant/5">
-          <span class="text-on-surface-variant font-medium text-sm">Active Keys</span>
+      <div class="mb-12 grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div
+          class="flex min-h-[140px] flex-col justify-between rounded-2xl border border-outline-variant/5 bg-surface-container-low p-6"
+        >
+          <span class="text-sm font-medium text-on-surface-variant"
+            >Active Keys</span
+          >
           <div class="flex items-baseline gap-2">
-            <span class="text-4xl font-headline font-bold text-primary">{{ apiKeys.length.toString().padStart(2, '0') }}</span>
-            <span class="text-on-surface-variant/60 text-xs">/ 10 Limit</span>
+            <span class="font-headline text-4xl font-bold text-primary">{{
+              apiKeys.length.toString().padStart(2, '0')
+            }}</span>
+            <span class="text-xs text-on-surface-variant/60">/ 10 Limit</span>
           </div>
         </div>
-        
-        <div class="bg-surface-container-low p-6 rounded-2xl flex flex-col justify-between min-h-[140px] relative overflow-hidden group border border-outline-variant/5">
+
+        <div
+          class="group relative flex min-h-[140px] flex-col justify-between overflow-hidden rounded-2xl border border-outline-variant/5 bg-surface-container-low p-6"
+        >
           <div class="relative z-10">
-            <span class="text-on-surface-variant font-medium text-sm">System Health</span>
-            <div class="flex items-center gap-2 mt-4">
-              <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span class="text-sm font-medium text-on-surface-variant"
+              >System Health</span
+            >
+            <div class="mt-4 flex items-center gap-2">
+              <div
+                class="h-3 w-3 animate-pulse rounded-full bg-emerald-500"
+              ></div>
               <span class="font-bold text-on-background">Operational</span>
             </div>
           </div>
-          <div class="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-700">
-            <span class="material-symbols-outlined text-8xl">verified_user</span>
+          <div
+            class="absolute -bottom-4 -right-4 opacity-10 transition-transform duration-700 group-hover:scale-110"
+          >
+            <span class="material-symbols-outlined text-8xl"
+              >verified_user</span
+            >
           </div>
         </div>
       </div>
 
       <!-- Keys Table Section -->
-      <div class="bg-surface-container-low rounded-3xl p-1 border border-outline-variant/5">
-        <div class="bg-surface-container-lowest rounded-[calc(1.5rem-4px)] overflow-hidden">
-          
+      <div
+        class="rounded-3xl border border-outline-variant/5 bg-surface-container-low p-1"
+      >
+        <div
+          class="overflow-hidden rounded-[calc(1.5rem-4px)] bg-surface-container-lowest"
+        >
           <!-- Table Header / Search -->
-          <div class="px-8 py-6 border-b border-surface-container-low flex flex-col sm:flex-row items-center justify-between gap-4">
-            <h3 class="font-headline font-bold text-xl">Existing Keys</h3>
+          <div
+            class="flex flex-col items-center justify-between gap-4 border-b border-surface-container-low px-8 py-6 sm:flex-row"
+          >
+            <h3 class="font-headline text-xl font-bold">Existing Keys</h3>
             <div class="relative w-full sm:w-64">
-              <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 text-sm">search</span>
-              <input 
+              <span
+                class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-sm text-on-surface-variant/50"
+                >search</span
+              >
+              <input
                 v-model="searchQuery"
-                class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full text-sm focus:ring-2 focus:ring-primary/20 w-full outline-none text-on-surface" 
-                placeholder="Search keys..." 
+                class="w-full rounded-full border-none bg-surface-container-low py-2 pl-10 pr-4 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20"
+                placeholder="Search keys..."
                 type="text"
               />
             </div>
@@ -209,78 +244,119 @@ onMounted(() => {
 
           <!-- List -->
           <div class="divide-y divide-surface-container-low">
-            <div v-if="filteredKeys.length === 0" class="px-8 py-12 text-center text-on-surface-variant/40">
-              <span class="material-symbols-outlined text-4xl mb-2 opacity-20">key_off</span>
+            <div
+              v-if="filteredKeys.length === 0"
+              class="px-8 py-12 text-center text-on-surface-variant/40"
+            >
+              <span class="material-symbols-outlined mb-2 text-4xl opacity-20"
+                >key_off</span
+              >
               <p>No API keys found.</p>
             </div>
 
-            <div 
-              v-for="key in filteredKeys" 
+            <div
+              v-for="key in filteredKeys"
               :key="key.id"
-              class="group px-8 py-6 flex flex-col lg:flex-row lg:items-center justify-between hover:bg-surface-container-low/50 transition-colors duration-300 gap-6"
+              class="group flex flex-col justify-between gap-6 px-8 py-6 transition-colors duration-300 hover:bg-surface-container-low/50 lg:flex-row lg:items-center"
             >
               <!-- Key Info -->
               <div class="flex items-center gap-6">
-                <div class="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <div
+                  class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary"
+                >
                   <span class="material-symbols-outlined">key</span>
                 </div>
                 <div class="space-y-1">
                   <h4 class="font-bold text-on-background">{{ key.name }}</h4>
                   <div class="flex items-center gap-3">
-                    <code class="text-[11px] bg-surface-container-high px-3 py-1 rounded-full text-on-surface font-mono tracking-tighter">
-                      {{ key.key.substring(0, 10) }}••••••••{{ key.key.substring(key.key.length - 4) }}
+                    <code
+                      class="rounded-full bg-surface-container-high px-3 py-1 font-mono text-[11px] tracking-tighter text-on-surface"
+                    >
+                      {{ key.key.substring(0, 10) }}••••••••{{
+                        key.key.substring(key.key.length - 4)
+                      }}
                     </code>
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    <span class="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Active</span>
+                    <span
+                      class="h-1.5 w-1.5 rounded-full bg-emerald-500"
+                    ></span>
+                    <span
+                      class="text-[10px] font-bold uppercase tracking-wider text-emerald-600"
+                      >Active</span
+                    >
                   </div>
                 </div>
               </div>
 
               <!-- Actions & Metadata -->
-              <div class="flex items-center justify-between lg:justify-end gap-12 border-t lg:border-none pt-4 lg:pt-0">
+              <div
+                class="flex items-center justify-between gap-12 border-t pt-4 lg:justify-end lg:border-none lg:pt-0"
+              >
                 <div class="text-left lg:text-right">
-                  <p class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40">Created</p>
-                  <p class="text-sm font-medium text-on-surface-variant">{{ formatDate(key.created_at) }}</p>
+                  <p
+                    class="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant/40"
+                  >
+                    Created
+                  </p>
+                  <p class="text-sm font-medium text-on-surface-variant">
+                    {{ formatDate(key.created_at) }}
+                  </p>
                 </div>
-                
+
                 <div class="flex items-center gap-2">
-                  <button 
-                    @click="copyToClipboard(key.key)"
-                    class="p-2 rounded-xl hover:bg-primary/10 text-on-surface-variant transition-all flex items-center gap-2 group-hover:text-primary"
+                  <button
+                    class="flex items-center gap-2 rounded-xl p-2 text-on-surface-variant transition-all hover:bg-primary/10 group-hover:text-primary"
                     title="Copy to clipboard"
+                    @click="copyToClipboard(key.key)"
                   >
-                    <span class="material-symbols-outlined text-[20px]">content_copy</span>
-                    <span class="hidden sm:inline text-xs font-semibold">Copy</span>
+                    <span class="material-symbols-outlined text-[20px]"
+                      >content_copy</span
+                    >
+                    <span class="hidden text-xs font-semibold sm:inline"
+                      >Copy</span
+                    >
                   </button>
-                  <button 
-                    @click="confirmRevoke(key.id)"
-                    class="p-2 rounded-xl hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-all flex items-center gap-2"
+                  <button
+                    class="flex items-center gap-2 rounded-xl p-2 text-on-surface-variant transition-all hover:bg-red-50 hover:text-red-600"
                     title="Revoke key"
+                    @click="confirmRevoke(key.id)"
                   >
-                    <span class="material-symbols-outlined text-[20px]">cancel</span>
-                    <span class="hidden sm:inline text-xs font-semibold">Revoke</span>
+                    <span class="material-symbols-outlined text-[20px]"
+                      >cancel</span
+                    >
+                    <span class="hidden text-xs font-semibold sm:inline"
+                      >Revoke</span
+                    >
                   </button>
                 </div>
               </div>
             </div>
           </div>
-
         </div>
       </div>
 
       <!-- Bottom Help Text -->
-      <p class="mt-8 text-center text-xs text-on-surface-variant/40 max-w-2xl mx-auto leading-relaxed">
-        Airelav API keys are secrets. If a key is compromised, revoke it immediately. 
-        You can have up to 10 active keys at any given time.
+      <p
+        class="mx-auto mt-8 max-w-2xl text-center text-xs leading-relaxed text-on-surface-variant/40"
+      >
+        Airelav API keys are secrets. If a key is compromised, revoke it
+        immediately. You can have up to 10 active keys at any given time.
       </p>
-
     </div>
   </div>
 </template>
 
 <style scoped>
-.font-headline { font-family: 'Manrope', sans-serif; }
-.custom-scrollbar::-webkit-scrollbar { width: 6px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e2db; border-radius: 10px; }
+.font-headline {
+  font-family: 'Manrope', sans-serif;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e5e2db;
+  border-radius: 10px;
+}
 </style>

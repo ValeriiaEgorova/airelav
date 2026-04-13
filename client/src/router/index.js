@@ -7,7 +7,6 @@ import UserPage from '../components/UserPage.vue';
 import AuthSuccess from '../components/AuthSuccess.vue';
 import ResetPassword from '../components/ResetPassword.vue';
 
-
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -17,15 +16,15 @@ const router = createRouter({
 
     {
       path: '/',
-      component: MainLayout, 
+      component: MainLayout,
       children: [
         { path: '', name: 'dashboard', component: Dashboard },
         { path: 'api-settings', name: 'api-settings', component: ApiSettings },
         { path: 'profile', name: 'profile', component: UserPage },
       ],
-      meta: { requiresAuth: true }
-    }
-  ]
+      meta: { requiresAuth: true },
+    },
+  ],
 });
 
 router.beforeEach((to, from, next) => {
