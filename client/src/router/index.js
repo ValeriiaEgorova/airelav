@@ -4,11 +4,16 @@ import Login from '../components/Login.vue';
 import Dashboard from '../components/Dashboard.vue';
 import ApiSettings from '../components/ApiSettings.vue';
 import UserPage from '../components/UserPage.vue';
+import AuthSuccess from '../components/AuthSuccess.vue';
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', component: Login },
+    
+    // --- ПРАВИЛЬНОЕ МЕСТО ДЛЯ AUTH-SUCCESS ---
+    { path: '/auth-success', component: AuthSuccess },
+
     {
       path: '/',
       component: MainLayout, 

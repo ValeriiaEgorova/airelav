@@ -38,6 +38,16 @@ const handleSubmit = async () => {
     toast.error(msg);
   }
 };
+
+const loginWithGithub = () => {
+  // Перенаправляем пользователя на эндпоинт бэкенда
+  window.location.href = `${API_URL}/auth/github/login`;
+};
+
+const loginWithGoogle = () => {
+  // Аналогично для Google, когда настроите его на бэкенде
+  window.location.href = `${API_URL}/auth/google/login`;
+};
 </script>
 
 <template>
@@ -169,16 +179,18 @@ const handleSubmit = async () => {
                     <div class="h-px flex-1 bg-gradient-to-l from-transparent to-primary/10"></div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-4">
-                    <button class="flex items-center justify-center gap-2 h-12 rounded-xl bg-white/50 border border-primary/5 hover:bg-white hover:border-primary/20 transition-all shadow-sm group">
-                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-primary/60">Google</span>
-                    </button>
-                    <button class="flex items-center justify-center gap-2 h-12 rounded-xl bg-white/50 border border-primary/5 hover:bg-white hover:border-primary/20 transition-all shadow-sm group">
-                        <img src="https://www.svgrepo.com/show/475654/github-color.svg" class="w-4 h-4 grayscale group-hover:grayscale-0 transition-all" alt="">
-                        <span class="text-[10px] font-bold uppercase tracking-wider text-primary/60">GitHub</span>
-                    </button>   
-                </div>
+                <div class="w-full mt-6">
+    <button 
+        type="button"
+        @click="loginWithGithub"
+        class="w-full flex items-center justify-center gap-3 h-12 rounded-xl bg-white/50 border border-primary/10 hover:bg-white hover:border-primary/30 hover:shadow-md transition-all duration-300 group"
+    >
+        <img src="https://www.svgrepo.com/show/475654/github-color.svg" class="w-5 h-5 grayscale group-hover:grayscale-0 transition-all duration-300" alt="GitHub Logo">
+        <span class="text-xs font-extrabold uppercase tracking-[0.15em] text-primary/70 group-hover:text-primary transition-colors">
+            Continue with GitHub
+        </span>
+    </button>   
+</div>
             </div>
         </div>
 
