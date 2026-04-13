@@ -4,7 +4,7 @@ const props = defineProps({
   message: { type: Object, required: true },
 });
 
-import { useToast } from "vue-toastification";
+import { useToast } from 'vue-toastification';
 const toast = useToast();
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
@@ -49,41 +49,62 @@ const formatNumber = (num) => {
 
 <template>
   <div class="w-full">
-    <div v-if="message.role === 'user'" class="flex justify-end group mb-8">
-      <div class="max-w-[80%] flex flex-col items-end gap-2">
-        <div class="bg-surface-container-highest p-5 rounded-2xl rounded-tr-sm text-on-surface-variant font-medium leading-relaxed shadow-sm">
+    <div v-if="message.role === 'user'" class="group mb-8 flex justify-end">
+      <div class="flex max-w-[80%] flex-col items-end gap-2">
+        <div
+          class="rounded-2xl rounded-tr-sm bg-surface-container-highest p-5 font-medium leading-relaxed text-on-surface-variant shadow-sm"
+        >
           {{ message.content }}
         </div>
       </div>
     </div>
 
-    <div v-else class="flex justify-start mb-8">
-      <div class="max-w-[95%] w-full flex flex-col items-start gap-4">
-        
-        <div class="flex items-center gap-3 mb-2">
-          <div class="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <span class="material-symbols-outlined text-primary text-lg" style="font-variation-settings: 'FILL' 1;">auto_awesome</span>
+    <div v-else class="mb-8 flex justify-start">
+      <div class="flex w-full max-w-[95%] flex-col items-start gap-4">
+        <div class="mb-2 flex items-center gap-3">
+          <div
+            class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10"
+          >
+            <span
+              class="material-symbols-outlined text-lg text-primary"
+              style="font-variation-settings: 'FILL' 1"
+              >auto_awesome</span
+            >
           </div>
-          <span class="font-headline font-bold text-on-surface">Airelav AI</span>
+          <span class="font-headline font-bold text-on-surface"
+            >Airelav AI</span
+          >
         </div>
 
-        <div class="w-full bg-surface-container-low/50 rounded-xl p-6 flex flex-col gap-6 shadow-sm border border-outline-variant/10">
-          
+        <div
+          class="flex w-full flex-col gap-6 rounded-xl border border-outline-variant/10 bg-surface-container-low/50 p-6 shadow-sm"
+        >
           <div v-if="message.loading" class="space-y-4">
-            <div class="flex items-center gap-3 text-sm text-on-surface-variant font-medium">
-              <span class="material-symbols-outlined animate-spin text-primary">sync</span>
-              <span>{{ message.status_msg || 'Processing your request...' }}</span>
+            <div
+              class="flex items-center gap-3 text-sm font-medium text-on-surface-variant"
+            >
+              <span class="material-symbols-outlined animate-spin text-primary"
+                >sync</span
+              >
+              <span>{{
+                message.status_msg || 'Processing your request...'
+              }}</span>
             </div>
-            <div class="h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-container-highest">
+            <div
+              class="h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-container-highest"
+            >
               <div
-                class="h-full bg-primary transition-all duration-500 rounded-full"
+                class="h-full rounded-full bg-primary transition-all duration-500"
                 :style="{ width: message.progress + '%' }"
               ></div>
             </div>
           </div>
 
-          <div v-else-if="message.error" class="rounded-xl border border-error/20 bg-error-container/30 p-4 text-error">
-            <p class="font-bold flex items-center">
+          <div
+            v-else-if="message.error"
+            class="rounded-xl border border-error/20 bg-error-container/30 p-4 text-error"
+          >
+            <p class="flex items-center font-bold">
               <span class="material-symbols-outlined mr-2 text-lg">error</span>
               Generation Error
             </p>
@@ -91,47 +112,77 @@ const formatNumber = (num) => {
           </div>
 
           <div v-else>
-            <div class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-6">
+            <div
+              class="mb-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between"
+            >
               <div>
-                <h3 class="font-headline text-2xl font-bold text-on-surface tracking-tight">Dataset Generated</h3>
-                <p class="text-on-surface-variant text-sm mt-1">{{ message.content }}</p>
+                <h3
+                  class="font-headline text-2xl font-bold tracking-tight text-on-surface"
+                >
+                  Dataset Generated
+                </h3>
+                <p class="mt-1 text-sm text-on-surface-variant">
+                  {{ message.content }}
+                </p>
               </div>
-              
+
               <div v-if="message.preview" class="flex flex-wrap gap-2">
-                <button @click="downloadFile(message.task_id, 'csv')" class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest text-primary font-bold text-xs rounded-full hover:bg-white border border-outline-variant/10 shadow-sm transition-all">
-                  <span class="material-symbols-outlined text-sm">download</span> CSV
+                <button
+                  class="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest px-4 py-2 text-xs font-bold text-primary shadow-sm transition-all hover:bg-white"
+                  @click="downloadFile(message.task_id, 'csv')"
+                >
+                  <span class="material-symbols-outlined text-sm"
+                    >download</span
+                  >
+                  CSV
                 </button>
-                <button @click="downloadFile(message.task_id, 'json')" class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest text-primary font-bold text-xs rounded-full hover:bg-white border border-outline-variant/10 shadow-sm transition-all">
-                  <span class="material-symbols-outlined text-sm">download</span> JSON
+                <button
+                  class="flex items-center gap-2 rounded-full border border-outline-variant/10 bg-surface-container-lowest px-4 py-2 text-xs font-bold text-primary shadow-sm transition-all hover:bg-white"
+                  @click="downloadFile(message.task_id, 'json')"
+                >
+                  <span class="material-symbols-outlined text-sm"
+                    >download</span
+                  >
+                  JSON
                 </button>
-                <button @click="downloadFile(message.task_id, 'xlsx')" class="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-primary to-primary-container text-white font-bold text-xs rounded-full shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all">
+                <button
+                  class="flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-primary-container px-6 py-2 text-xs font-bold text-white shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
+                  @click="downloadFile(message.task_id, 'xlsx')"
+                >
                   Export Excel
                 </button>
               </div>
             </div>
 
-            <div v-if="message.preview && message.preview.length" class="bg-surface-container-lowest rounded-2xl overflow-hidden border border-outline-variant/10">
+            <div
+              v-if="message.preview && message.preview.length"
+              class="overflow-hidden rounded-2xl border border-outline-variant/10 bg-surface-container-lowest"
+            >
               <div class="overflow-x-auto">
-                <table class="w-full text-left text-sm border-collapse">
+                <table class="w-full border-collapse text-left text-sm">
                   <thead>
-                    <tr class="bg-surface-container-low text-on-surface-variant">
-                      <th 
-                        v-for="(key, idx) in Object.keys(message.preview[0] || {})" 
+                    <tr
+                      class="bg-surface-container-low text-on-surface-variant"
+                    >
+                      <th
+                        v-for="(key, idx) in Object.keys(
+                          message.preview[0] || {}
+                        )"
                         :key="idx"
-                        class="px-6 py-4 font-bold text-[11px] uppercase tracking-widest"
+                        class="px-6 py-4 text-[11px] font-bold uppercase tracking-widest"
                       >
                         {{ key }}
                       </th>
                     </tr>
                   </thead>
-                  <tbody class="text-on-surface font-medium">
-                    <tr 
-                      v-for="(row, rIdx) in message.preview" 
+                  <tbody class="font-medium text-on-surface">
+                    <tr
+                      v-for="(row, rIdx) in message.preview"
                       :key="rIdx"
-                      class="hover:bg-surface-container/30 transition-colors border-t border-outline-variant/5"
+                      class="border-t border-outline-variant/5 transition-colors hover:bg-surface-container/30"
                     >
-                      <td 
-                        v-for="(val, cIdx) in row" 
+                      <td
+                        v-for="(val, cIdx) in row"
                         :key="cIdx"
                         class="px-6 py-4"
                       >
@@ -141,9 +192,13 @@ const formatNumber = (num) => {
                   </tbody>
                 </table>
               </div>
-              
-              <div class="p-4 bg-surface-container-low flex justify-between items-center border-t border-outline-variant/10">
-                <div class="flex gap-4 text-[11px] font-bold text-on-surface-variant/60 uppercase tracking-widest">
+
+              <div
+                class="flex items-center justify-between border-t border-outline-variant/10 bg-surface-container-low p-4"
+              >
+                <div
+                  class="flex gap-4 text-[11px] font-bold uppercase tracking-widest text-on-surface-variant/60"
+                >
                   <span v-if="message.row_count !== undefined">
                     TOTAL: {{ formatNumber(message.row_count) }} ROWS
                   </span>
@@ -151,10 +206,12 @@ const formatNumber = (num) => {
                     SIZE: {{ formatBytes(message.file_size) }}
                   </span>
                 </div>
-                <span class="text-[10px] font-bold text-primary/50 uppercase tracking-widest">Preview Mode</span>
+                <span
+                  class="text-[10px] font-bold uppercase tracking-widest text-primary/50"
+                  >Preview Mode</span
+                >
               </div>
             </div>
-
           </div>
         </div>
       </div>

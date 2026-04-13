@@ -3,18 +3,22 @@ import os
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+
 import pandas as pd
 import redis.asyncio as redis
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, status
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_limiter import FastAPILimiter
 from fastapi_limiter.depends import RateLimiter
+from fastapi_sso.sso.github import GithubSSO
+from pydantic import BaseModel
 from sqlalchemy import func
-from sqlmodel import Session, desc, select
+from sqlmodel import Session, col, desc, select
 
 from auth import (
     create_access_token,
@@ -25,7 +29,29 @@ from auth import (
 )
 from core import generate_and_run
 from database import create_db_and_tables, engine, get_session
-from models import APIKey, Conversation, GenerateRequest, GenerationTask, User, EnhancePromptRequest
+from models import (
+    APIKey,
+    Conversation,
+    EnhancePromptRequest,
+    GenerateRequest,
+    GenerationTask,
+    User,
+)
+
+load_dotenv()
+
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
+
+if not GITHUB_CLIENT_ID or not GITHUB_CLIENT_SECRET:
+    pass
+
+github_sso = GithubSSO(
+    client_id=GITHUB_CLIENT_ID,
+    client_secret=GITHUB_CLIENT_SECRET,
+    redirect_uri="http://localhost:8000/auth/github/callback",
+)
+
 
 app = FastAPI(title="AIrelav API")
 
@@ -65,7 +91,7 @@ async def on_startup() -> None:
     await FastAPILimiter.init(redis_connection)
     scheduler.add_job(
         cleanup_expired_files,
-        trigger=IntervalTrigger(hours=12), 
+        trigger=IntervalTrigger(hours=12),
         id="gc_job",
         name="Cleanup expired generated files",
         replace_existing=True,
@@ -107,18 +133,20 @@ def login(
 
 @app.get("/conversations")
 async def get_conversations(
-    offset: int = 0, limit: int = 20,
+    offset: int = 0,
+    limit: int = 20,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ) -> Any:
     return session.exec(
         select(Conversation)
         .where(Conversation.user_id == current_user.id)
-        .where(Conversation.is_deleted == False)
+        .where(not Conversation.is_deleted)
         .order_by(desc(Conversation.created_at))
         .offset(offset)
         .limit(limit)
     ).all()
+
 
 @app.get("/conversations/{conversation_id}")
 async def get_conversation_history(
@@ -133,7 +161,7 @@ async def get_conversation_history(
     tasks = session.exec(
         select(GenerationTask)
         .where(GenerationTask.conversation_id == conversation_id)
-        .where(GenerationTask.is_deleted == False)
+        .where(not GenerationTask.is_deleted)
         .order_by(desc(GenerationTask.created_at))
     ).all()
     return tasks
@@ -155,11 +183,11 @@ async def delete_conversation(
     tasks = session.exec(
         select(GenerationTask).where(GenerationTask.conversation_id == conversation_id)
     ).all()
-    
+
     for task in tasks:
         task.is_deleted = True
         session.add(task)
-        
+
         if task.file_path and os.path.exists(task.file_path):
             try:
                 os.remove(task.file_path)
@@ -196,15 +224,17 @@ async def start_generation(
     active_task = session.exec(
         select(GenerationTask)
         .where(GenerationTask.user_id == current_user.id)
-        .where(GenerationTask.status.in_(["pending", "processing"]))
+        .where(
+            col(GenerationTask.status).in_(["pending", "processing"])
+        )  # Добавили col()
     ).first()
 
     if active_task:
         raise HTTPException(
-            status_code=429, # 429 Too Many Requests
-            detail="У вас уже выполняется генерация данных. Дождитесь её завершения перед отправкой нового запроса."
+            status_code=429,  # 429 Too Many Requests
+            detail="У вас уже выполняется генерация данных. Дождитесь её завершения перед отправкой нового запроса.",
         )
-    
+
     previous_code = None
 
     prompt = request.prompt
@@ -275,8 +305,8 @@ def create_api_key(
 ):
     if len(user.api_keys) >= 10:
         raise HTTPException(
-            status_code=400, 
-            detail="Вы достигли лимита в 10 активных API ключей. Удалите старые, чтобы создать новый."
+            status_code=400,
+            detail="Вы достигли лимита в 10 активных API ключей. Удалите старые, чтобы создать новый.",
         )
     random_part = secrets.token_urlsafe(16)
     new_key_str = f"sk-relav-{random_part}"
@@ -333,7 +363,7 @@ async def download_file(
 
     try:
         df = pd.read_csv(task.file_path)
-        
+
         stream = io.BytesIO()
 
         if format == "csv":
@@ -345,8 +375,10 @@ async def download_file(
             media_type = "application/json"
             filename = f"dataset_{task_id}.json"
         elif format == "xlsx":
-            df.to_excel(stream, index=False, engine='openpyxl')
-            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            df.to_excel(stream, index=False, engine="openpyxl")
+            media_type = (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
             filename = f"dataset_{task_id}.xlsx"
         else:
             raise HTTPException(
@@ -362,9 +394,10 @@ async def download_file(
 
     except Exception as e:
         print(f"Ошибка при конвертации для скачивания: {e}")
+        # Правильный вариант:
         raise HTTPException(
-            status_code=500, detail=f"Ошибка подготовки файла: {str(e)}"
-        )
+            status_code=404, detail="Файл данных не найден или поврежден"
+        ) from e
 
 
 def run_generation_wrapper(
@@ -441,51 +474,50 @@ def get_task_status(
         "status": task.status,
         "progress": task.progress,
         "status_message": task.status_message,
-        "preview_data": task.preview_data, # Важно для превью!
+        "preview_data": task.preview_data,  # Важно для превью!
         "error_log": task.error_log,
         "file_size": task.file_size,
-        "row_count": task.row_count
+        "row_count": task.row_count,
     }
+
 
 @app.post("/enhance-prompt", dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def enhance_prompt(
     request: EnhancePromptRequest,
     current_user: User = Depends(get_current_user_or_api_key),
 ) -> dict[str, str]:
-    
+
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt is empty")
 
     system_instruction = """
     Ты — Data Engineer. Твоя задача: улучшить короткий запрос пользователя для генератора синтетических данных.
-    
     ПРАВИЛА:
     1. Сделай запрос более профессиональным: добавь нужные колонки, распределения (например, нормальное) или логические связи (например, "зарплата зависит от должности").
     2. КРАТКОСТЬ: Твой ответ должен быть ОЧЕНЬ лаконичным (максимум 2-3 предложения).
     3. ЛИМИТ СИМВОЛОВ: Строго уложись в 800 символов.
     4. Ответь ТОЛЬКО улучшенным текстом, без приветствий, без пояснений, без кавычек.
     5. Сохраняй язык оригинала (русский или английский).
-    
     Пример:
     Оригинал: "сделай базу сотрудников"
     Улучшение: "Сгенерируй датасет из 500 сотрудников: ФИО, email (5% ошибок), должность, зарплата (зависит от должности) и дата найма (2020-2024)."
     """
-    
+
     try:
-        from core import client, DEFAULT_MODEL
-        
+        from core import DEFAULT_MODEL, client
+
         resp = client.models.generate_content(
             model=DEFAULT_MODEL,
-            contents=f"{system_instruction}\n\nОРИГИНАЛЬНЫЙ ЗАПРОС:\n{request.prompt}"
+            contents=f"{system_instruction}\n\nОРИГИНАЛЬНЫЙ ЗАПРОС:\n{request.prompt}",
         )
-        
+
         enhanced_text = resp.text.strip() if resp.text else request.prompt
-        
+
         if len(enhanced_text) > 990:
             enhanced_text = enhanced_text[:990] + "..."
-            
+
         return {"enhanced_prompt": enhanced_text}
-        
+
     except Exception as e:
         print(f"Enhance error: {e}")
         return {"enhanced_prompt": request.prompt}
@@ -499,7 +531,7 @@ def cleanup_expired_files():
         expired_tasks = session.exec(
             select(GenerationTask)
             .where(GenerationTask.expires_at < now)
-            .where(GenerationTask.file_path != None)
+            .where(GenerationTask.file_path is not None)
         ).all()
 
         count = 0
@@ -513,26 +545,32 @@ def cleanup_expired_files():
                     count += 1
                 except OSError as e:
                     print(f"GC Error: Не удалось удалить файл {task.file_path}: {e}")
-        
+
         session.commit()
         if count > 0:
             print(f"Garbage Collector: Удалено {count} просроченных файлов.")
 
+
 @app.get("/auth/me")
 async def get_user_profile(
     current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
     total_tasks = session.exec(
-        select(func.count(GenerationTask.id))
+        select(func.count())  # Убрали GenerationTask.id, так проще и MyPy доволен
+        .select_from(GenerationTask)  # Явно указываем таблицу
         .where(GenerationTask.user_id == current_user.id)
         .where(GenerationTask.status == "completed")
     ).one()
 
-    total_rows = session.exec(
-        select(func.sum(GenerationTask.row_count))
-        .where(GenerationTask.user_id == current_user.id)
-    ).one() or 0
+    total_rows = (
+        session.exec(
+            select(func.sum(GenerationTask.row_count)).where(
+                GenerationTask.user_id == current_user.id
+            )
+        ).one()
+        or 0
+    )
 
     return {
         "id": current_user.id,
@@ -541,9 +579,99 @@ async def get_user_profile(
         "stats": {
             "total_datasets": total_tasks,
             "total_rows": total_rows,
-            "active_keys": len(current_user.api_keys)
-        }
+            "active_keys": len(current_user.api_keys),
+        },
     }
+
+
+@app.get("/auth/github/callback")
+async def github_callback(request: Request, session: Session = Depends(get_session)):
+    async with github_sso:  # <--- И ТУТ ASYNC
+        user_data = await github_sso.verify_and_process(request)
+
+    if not user_data:
+        raise HTTPException(
+            status_code=400, detail="Failed to get user data from GitHub"
+        )
+
+    user = session.exec(select(User).where(User.email == user_data.email)).first()
+
+    if not user:
+        user = User(
+            email=user_data.email,
+            hashed_password=get_password_hash(secrets.token_urlsafe(32)),
+            tier="free",
+        )
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
+    access_token = create_access_token(data={"sub": user.email})
+    frontend_url = "http://localhost:5173/auth-success"
+    return RedirectResponse(url=f"{frontend_url}?token={access_token}")
+
+
+@app.get("/auth/github/login")
+async def github_login():
+    async with github_sso:  # <--- ТУТ ASYNC
+        return await github_sso.get_login_redirect()
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@app.post("/auth/forgot-password")
+async def forgot_password(
+    request: ForgotPasswordRequest, session: Session = Depends(get_session)
+):
+    from auth import create_password_reset_token  # Импорт прямо перед использованием
+
+    user = session.exec(select(User).where(User.email == request.email)).first()
+
+    # Для безопасности мы не говорим, найден ли email, просто возвращаем ОК
+    if not user:
+        return {
+            "message": "If this email is registered, you will receive a reset link."
+        }
+
+    reset_token = create_password_reset_token(email=user.email)
+
+    # Эмуляция отправки письма (ссылка будет в консоли)
+    reset_link = f"http://localhost:5173/reset-password?token={reset_token}"
+
+    return {
+        "message": "If this email is registered, you will receive a reset link.",
+        "demo_link": reset_link,
+    }
+
+
+@app.post("/auth/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest, session: Session = Depends(get_session)
+):
+    from auth import get_password_hash, verify_password_reset_token  # Импорты
+
+    email = verify_password_reset_token(request.token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user = session.exec(select(User).where(User.email == email)).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Обновляем пароль в БД
+    user.hashed_password = get_password_hash(request.new_password)
+    session.add(user)
+    session.commit()
+
+    return {"message": "Password updated successfully"}
+
 
 @app.on_event("shutdown")
 def shutdown_event():

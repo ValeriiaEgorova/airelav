@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted, nextTick, watch, computed } from 'vue';
 import axios from 'axios';
-import { useToast } from "vue-toastification";
+import { useToast } from 'vue-toastification';
 import { chatStore } from '../chatStore';
 import ChatMessage from './chat/ChatMessage.vue';
 import BaseModal from './common/BaseModal.vue'; // Убедитесь, что путь верный
@@ -37,14 +37,17 @@ const scrollToBottom = async (force = false) => {
     if (force || distanceToBottom < 150) {
       chatContainer.value.scrollTo({
         top: scrollHeight,
-        behavior: 'smooth'
+        behavior: 'smooth',
       });
     }
   }
 };
 
 const formatDate = (dateStr) => {
-  return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(dateStr).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 // --- ЛОГИКА ЧАТА ---
@@ -54,7 +57,7 @@ const loadFullChat = async (id) => {
     messages.value = [];
     return;
   }
-  
+
   if (pollingInterval.value) clearInterval(pollingInterval.value);
 
   try {
@@ -67,7 +70,12 @@ const loadFullChat = async (id) => {
       messages.value.push({
         role: 'ai',
         task_id: task.id,
-        content: task.status === 'completed' ? 'Готово! Вот результат:' : task.error_log ? `Ошибка: ${task.error_log}` : 'Обработка...',
+        content:
+          task.status === 'completed'
+            ? 'Готово! Вот результат:'
+            : task.error_log
+              ? `Ошибка: ${task.error_log}`
+              : 'Обработка...',
         preview: task.preview_data,
         file_size: task.file_size,
         row_count: task.row_count,
@@ -80,7 +88,7 @@ const loadFullChat = async (id) => {
     scrollToBottom();
   } catch (error) {
     console.error('Ошибка загрузки чата:', error);
-    toast.error("Failed to load chat history");
+    toast.error('Failed to load chat history');
   }
 };
 
@@ -90,14 +98,16 @@ const enhancePrompt = async () => {
 
   isEnhancing.value = true;
   try {
-    const response = await axios.post(`${API_URL}/enhance-prompt`, { prompt: text });
+    const response = await axios.post(`${API_URL}/enhance-prompt`, {
+      prompt: text,
+    });
     if (response.data && response.data.enhanced_prompt) {
       prompt.value = response.data.enhanced_prompt;
-      toast.info("Prompt enhanced with AI");
+      toast.info('Prompt enhanced with AI');
     }
   } catch (error) {
-    console.error("Ошибка при улучшении промпта:", error);
-    toast.error("Failed to enhance prompt");
+    console.error('Ошибка при улучшении промпта:', error);
+    toast.error('Failed to enhance prompt');
   } finally {
     isEnhancing.value = false;
   }
@@ -117,29 +127,30 @@ const sendMessage = async () => {
   await scrollToBottom();
 
   // 3. Создаем объект сообщения ИИ и запоминаем его индекс
-  const aiMessageIndex = messages.value.push({
-    role: 'ai',
-    loading: true,
-    progress: 0,
-    status_msg: 'Инициализация...',
-    content: '',
-    task_id: null,
-    preview: null,
-    error: false
-  }) - 1;
+  const aiMessageIndex =
+    messages.value.push({
+      role: 'ai',
+      loading: true,
+      progress: 0,
+      status_msg: 'Инициализация...',
+      content: '',
+      task_id: null,
+      preview: null,
+      error: false,
+    }) - 1;
 
   await scrollToBottom();
 
   try {
     // 4. Запрос на генерацию
     const response = await axios.post(`${API_URL}/generate`, {
-      prompt: text, 
-      conversation_id: chatStore.currentConversationId, 
+      prompt: text,
+      conversation_id: chatStore.currentConversationId,
       model: chatStore.selectedModel,
     });
-    
+
     const { task_id, conversation_id } = response.data;
-    
+
     // Привязываем ID к сообщению
     messages.value[aiMessageIndex].task_id = task_id;
 
@@ -164,20 +175,19 @@ const sendMessage = async () => {
 
         if (data.status === 'completed') {
           clearInterval(pollingInterval.value);
-          messages.value[aiMessageIndex].loading = false; 
+          messages.value[aiMessageIndex].loading = false;
           messages.value[aiMessageIndex].content = 'Готово! Вот результат:';
-          messages.value[aiMessageIndex].preview = data.preview_data; 
+          messages.value[aiMessageIndex].preview = data.preview_data;
           messages.value[aiMessageIndex].file_size = data.file_size;
           messages.value[aiMessageIndex].row_count = data.row_count;
-          isGenerating.value = false; 
+          isGenerating.value = false;
           await scrollToBottom();
-        } 
-        else if (data.status === 'failed') {
+        } else if (data.status === 'failed') {
           clearInterval(pollingInterval.value);
-          messages.value[aiMessageIndex].loading = false; 
-          messages.value[aiMessageIndex].error = true; 
+          messages.value[aiMessageIndex].loading = false;
+          messages.value[aiMessageIndex].error = true;
           messages.value[aiMessageIndex].content = `Ошибка: ${data.error_log}`;
-          isGenerating.value = false; 
+          isGenerating.value = false;
           await scrollToBottom();
         }
       } catch (e) {
@@ -185,12 +195,12 @@ const sendMessage = async () => {
         // Не очищаем интервал при временной ошибке сети, пробуем дальше
       }
     }, 1500);
-
   } catch (error) {
     console.error('Ошибка при отправке:', error);
-    const errorMsg = error.response?.data?.detail || 'Ошибка соединения с сервером.';
-    messages.value[aiMessageIndex].loading = false; 
-    messages.value[aiMessageIndex].error = true; 
+    const errorMsg =
+      error.response?.data?.detail || 'Ошибка соединения с сервером.';
+    messages.value[aiMessageIndex].loading = false;
+    messages.value[aiMessageIndex].error = true;
     messages.value[aiMessageIndex].content = errorMsg;
     isGenerating.value = false;
   }
@@ -202,22 +212,26 @@ const confirmDelete = async () => {
     await chatStore.deleteChat(chatToDelete.value);
     showDeleteModal.value = false;
     messages.value = [];
-    toast.success("Conversation deleted");
+    toast.success('Conversation deleted');
   } catch (e) {
-    toast.error("Failed to delete chat");
+    toast.error('Failed to delete chat');
   }
 };
 
 // --- WATCHERS & LIFECYCLE ---
 
-watch(() => chatStore.currentConversationId, (newId) => {
-  if (newId) {
-    loadFullChat(newId);
-  } else {
-    messages.value = [];
-    if (pollingInterval.value) clearInterval(pollingInterval.value);
-  }
-}, { immediate: true });
+watch(
+  () => chatStore.currentConversationId,
+  (newId) => {
+    if (newId) {
+      loadFullChat(newId);
+    } else {
+      messages.value = [];
+      if (pollingInterval.value) clearInterval(pollingInterval.value);
+    }
+  },
+  { immediate: true }
+);
 
 onMounted(() => {
   if (chatStore.currentConversationId) {
@@ -228,109 +242,152 @@ onMounted(() => {
 
 <template>
   <!-- МОДАЛКА УДАЛЕНИЯ -->
-  <BaseModal 
+  <BaseModal
     :show="showDeleteModal"
     title="Delete Chat?"
     description="This action cannot be undone. All generated files for this conversation will be removed."
-    confirmText="Delete"
-    :isDestructive="true"
+    confirm-text="Delete"
+    :is-destructive="true"
     @close="showDeleteModal = false"
     @confirm="confirmDelete"
   />
 
-  <div class="flex-1 flex flex-col relative w-full h-full overflow-hidden bg-background">
-    
+  <div
+    class="relative flex h-full w-full flex-1 flex-col overflow-hidden bg-background"
+  >
     <!-- Область сообщений -->
-    <section ref="chatContainer" class="flex-1 overflow-y-auto pt-8 pb-32 px-6 max-w-6xl mx-auto w-full flex flex-col gap-12 custom-scrollbar">
-      
+    <section
+      ref="chatContainer"
+      class="custom-scrollbar mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 overflow-y-auto px-6 pb-32 pt-8"
+    >
       <!-- Пустое состояние -->
-      <div v-if="messages.length === 0" class="mt-20 flex flex-col items-center text-center opacity-70">
-        <div class="w-16 h-16 rounded-2xl bg-surface-container-highest flex items-center justify-center mb-6">
-          <span class="material-symbols-outlined text-[32px] text-primary">auto_awesome</span>
+      <div
+        v-if="messages.length === 0"
+        class="mt-20 flex flex-col items-center text-center opacity-70"
+      >
+        <div
+          class="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-container-highest"
+        >
+          <span class="material-symbols-outlined text-[32px] text-primary"
+            >auto_awesome</span
+          >
         </div>
-        <h2 class="font-headline text-3xl font-bold text-on-surface">Describe your dataset</h2>
-        <p class="mt-2 text-on-surface-variant max-w-md">
-          Enter a prompt below to generate synthetic data, schemas, or exports in CSV, JSON, and Excel.
+        <h2 class="font-headline text-3xl font-bold text-on-surface">
+          Describe your dataset
+        </h2>
+        <p class="mt-2 max-w-md text-on-surface-variant">
+          Enter a prompt below to generate synthetic data, schemas, or exports
+          in CSV, JSON, and Excel.
         </p>
       </div>
 
       <!-- Сообщения -->
-      <ChatMessage 
-        v-for="(msg, idx) in messages" 
-        :key="idx" 
-        :message="msg" 
-      />
+      <ChatMessage v-for="(msg, idx) in messages" :key="idx" :message="msg" />
     </section>
 
     <!-- Подвал с полем ввода -->
-    <footer class="absolute bottom-0 right-0 left-0 bg-gradient-to-t from-background via-background to-transparent pt-12 pb-8 px-4 md:px-8 z-10">
-      <div class="max-w-4xl mx-auto relative">
-        
+    <footer
+      class="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-background via-background to-transparent px-4 pb-8 pt-12 md:px-8"
+    >
+      <div class="relative mx-auto max-w-4xl">
         <!-- Предупреждение о лимите -->
         <transition name="fade">
-          <div v-if="isOverLimit" class="absolute -top-8 left-0 right-0 text-center text-xs font-bold text-red-500 bg-red-100 py-1 rounded-full w-max mx-auto px-4 shadow-sm border border-red-200">
+          <div
+            v-if="isOverLimit"
+            class="absolute -top-8 left-0 right-0 mx-auto w-max rounded-full border border-red-200 bg-red-100 px-4 py-1 text-center text-xs font-bold text-red-500 shadow-sm"
+          >
             Maximum limit reached ({{ MAX_CHARS }} chars)
           </div>
         </transition>
 
-        <div class="relative bg-surface-container-lowest rounded-full shadow-xl border border-outline-variant/10 p-2 flex items-center transition-all focus-within:ring-2"
-             :class="isOverLimit ? 'focus-within:ring-red-500/50 border-red-500/50' : 'focus-within:ring-primary/20'">
-          
+        <div
+          class="relative flex items-center rounded-full border border-outline-variant/10 bg-surface-container-lowest p-2 shadow-xl transition-all focus-within:ring-2"
+          :class="
+            isOverLimit
+              ? 'border-red-500/50 focus-within:ring-red-500/50'
+              : 'focus-within:ring-primary/20'
+          "
+        >
           <!-- Кнопка улучшения промпта (Вместо скрепки) -->
-          <button 
-            @click="enhancePrompt"
+          <button
             :disabled="isEnhancing || !prompt.trim() || isGenerating"
             title="Improve prompt with AI"
-            class="w-12 h-12 flex items-center justify-center transition-colors group disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-            :class="prompt.trim() ? 'text-primary hover:bg-primary/10 rounded-full' : 'text-on-surface-variant'"
+            class="group flex h-12 w-12 shrink-0 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+            :class="
+              prompt.trim()
+                ? 'rounded-full text-primary hover:bg-primary/10'
+                : 'text-on-surface-variant'
+            "
+            @click="enhancePrompt"
           >
-            <span v-if="!isEnhancing" class="material-symbols-outlined group-hover:scale-110 transition-transform">
+            <span
+              v-if="!isEnhancing"
+              class="material-symbols-outlined transition-transform group-hover:scale-110"
+            >
               auto_fix_high
             </span>
-            <span v-else class="material-symbols-outlined animate-spin text-primary">
+            <span
+              v-else
+              class="material-symbols-outlined animate-spin text-primary"
+            >
               sync
             </span>
           </button>
-          
-          <textarea 
+
+          <textarea
             v-model="prompt"
             :maxlength="MAX_CHARS"
-            @keydown.enter.prevent="sendMessage"
-            class="flex-1 bg-transparent border-none focus:ring-0 py-3 px-2 text-on-surface resize-none font-medium placeholder:text-on-surface-variant/40 outline-none h-[48px] leading-[24px]" 
-            placeholder="Describe the dataset you want to generate..." 
+            class="h-[48px] flex-1 resize-none border-none bg-transparent px-2 py-3 font-medium leading-[24px] text-on-surface outline-none placeholder:text-on-surface-variant/40 focus:ring-0"
+            placeholder="Describe the dataset you want to generate..."
             rows="1"
+            @keydown.enter.prevent="sendMessage"
           ></textarea>
-          
-          <div class="flex items-center gap-3 pr-2 shrink-0">
+
+          <div class="flex shrink-0 items-center gap-3 pr-2">
             <!-- Счетчик символов -->
-            <span 
+            <span
               v-if="charCount > 0"
-              class="text-[10px] font-bold transition-colors tabular-nums"
-              :class="isNearLimit ? 'text-red-500' : 'text-on-surface-variant/40'"
+              class="text-[10px] font-bold tabular-nums transition-colors"
+              :class="
+                isNearLimit ? 'text-red-500' : 'text-on-surface-variant/40'
+              "
             >
               {{ charCount }} / {{ MAX_CHARS }}
             </span>
 
             <!-- Кнопка отправки -->
-            <button 
+            <button
               :disabled="isGenerating || !prompt.trim() || isOverLimit"
+              class="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-white shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+              :class="{ 'bg-red-500 shadow-red-500/30': isOverLimit }"
               @click="sendMessage"
-              class="bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center shadow-lg shadow-primary/30 transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-              :class="{'bg-red-500 shadow-red-500/30': isOverLimit}"
             >
-              <span v-if="!isGenerating" class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">send</span>
-              <span v-else class="material-symbols-outlined animate-spin">sync</span>
+              <span
+                v-if="!isGenerating"
+                class="material-symbols-outlined"
+                style="font-variation-settings: 'FILL' 1"
+                >send</span
+              >
+              <span v-else class="material-symbols-outlined animate-spin"
+                >sync</span
+              >
             </button>
           </div>
         </div>
-        
+
         <!-- Значки внизу -->
         <div class="mt-3 flex justify-center gap-6">
-          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-widest">
-            <span class="material-symbols-outlined text-[14px]">shield</span> Isolated Sandbox
+          <span
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/30"
+          >
+            <span class="material-symbols-outlined text-[14px]">shield</span>
+            Isolated Sandbox
           </span>
-          <span class="flex items-center gap-1.5 text-[10px] font-bold text-on-surface-variant/30 uppercase tracking-widest">
-            <span class="material-symbols-outlined text-[14px]">bolt</span> Real-time generation
+          <span
+            class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/30"
+          >
+            <span class="material-symbols-outlined text-[14px]">bolt</span>
+            Real-time generation
           </span>
         </div>
       </div>
@@ -339,11 +396,27 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.custom-scrollbar::-webkit-scrollbar { width: 4px; }
-.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-.custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.05); border-radius: 10px; }
-.font-headline { font-family: 'Manrope', sans-serif; }
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 10px;
+}
+.font-headline {
+  font-family: 'Manrope', sans-serif;
+}
 
-.fade-enter-active, .fade-leave-active { transition: all 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(10px); }
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.3s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
+}
 </style>

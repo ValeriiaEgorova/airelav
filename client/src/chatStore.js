@@ -5,7 +5,7 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 // Настраиваем перехватчик, чтобы каждый запрос из стора автоматически содержал токен
-axios.interceptors.request.use(config => {
+axios.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -46,15 +46,15 @@ export const chatStore = reactive({
     try {
       const offset = reset ? 0 : this.history.length;
       const res = await axios.get(`${API_URL}/conversations`, {
-        params: { offset, limit: 10 }
+        params: { offset, limit: 10 },
       });
-      
+
       if (reset) {
         this.history = res.data;
       } else {
         this.history.push(...res.data);
       }
-      
+
       // Если пришло меньше 10 записей, значит больше данных в БД нет
       this.hasMore = res.data.length === 10;
     } catch (e) {
@@ -67,16 +67,16 @@ export const chatStore = reactive({
   // 3. Удаление чата
   async deleteChat(id) {
     try {
-      await axios.delete(`${API_URL}/conversations/${id}`); 
-      
+      await axios.delete(`${API_URL}/conversations/${id}`);
+
       // Удаляем локально
-      this.history = this.history.filter(item => item.id !== id);
-      
+      this.history = this.history.filter((item) => item.id !== id);
+
       // Если удалили текущий активный чат — сбрасываем ID
       if (this.currentConversationId === id) {
         this.currentConversationId = null;
       }
-    } catch (e) { 
+    } catch (e) {
       console.error('Ошибка удаления:', e);
       throw e; // Пробрасываем ошибку для уведомления в компоненте
     }
@@ -88,5 +88,5 @@ export const chatStore = reactive({
     this.currentConversationId = null;
     this.userEmail = 'User';
     this.userTier = 'free';
-  }
+  },
 });
